@@ -2,35 +2,33 @@
 handlers/clasificacion.py — Replica exacta del blueprint "0. Clasificación Gmail Sistemas".
 
 Flujo general:
-  1. Obtener emails nuevos del INBOX (History API — sólo los realmente nuevos).
+  1. Obtener emails nuevos del INBOX (History API).
   2. Para cada email:
        a. Módulo 10: sleep 3 segundos.
-       b. BasicRouter: evalúa TODAS las rutas de forma independiente.
-       c. Aplica las etiquetas Gmail correspondientes (moveAnEmail = add + remove INBOX).
+       b. BasicRouter (módulo 2): evalúa TODAS las rutas de forma independiente.
+       c. Aplica etiquetas Gmail (moveAnEmail = addLabelIds + removeLabelIds: INBOX).
 
-Rutas del BasicRouter (no exclusivas — se evalúan todas):
+Rutas del BasicRouter principal (módulo 2) — no exclusivas:
   1.  fromEmail contains "antigravity"                              → Antigravity
   2.  fromEmail contains "masip."                                   → MasIP
   3.  lower(fromName) contains "microsoft" AND NOT "power bi"       → Microsoft
-  4.  fromEmail contains "openai." OR subject contains "openai"     → OpenAI
+  4.  fromEmail contains "openai." OR lower(subject) contains "openai" → OpenAI
   5.  fromEmail contains "radicalsys.com"                           → RADical Systems
   6.  lower(fromName) contains "power bi"                           → Reportes Power Bi
-  7.  subject contains "zapier" OR (fromName=="zapier" AND NOT "error on your") → Zapier
-  8.  subject contains "airtable" AND NOT "error en flujo"          → AirTable
-  9.  subject contains "Clasificación CGI -" AND fromEmail=="cgi@tutrastero.com"
-        → Flujo complejo (módulos 46-53):
-            · Busca registro en Airtable Clasificación por asunto-clasif
-            · Carga Definiciones (mod 46) y Ejemplos (mod 48) de Airtable
-            · OpenAI gpt-4.1 re-clasifica el email (mod 50) → categoria
-            · Compara con clasificación de Airtable (mod 19):
-                correcto  → Actualiza evaluacion="correcto"  (mod 52)
-                incorrecto→ Actualiza evaluacion="incorrecto" (mod 53)
-            · Aplica sub-etiqueta CGI según tipo EN EL ASUNTO (mods 26 / 32)
-  10. fromName=="Tu Trastero CGI" AND NOT "Clasificación CGI -" in subject → CGI-Respuestas
-  11. subject contains "nuevo prospecto sin gestionar"               → Bitrix24
-  12. subject contains "make" OR "error in" OR "has been stopped"   → Make
-  13. "Cobro de Moroso -" in subject OR "Oportunidad Única -" in subject → Bot Llamada Morosos
-  14. "Proceso de Contratación:" in subject                          → Presupuestos y Contratación Online
+  7.  lower(subject) contains "zapier" OR (lower(fromName)=="zapier" AND NOT "error on your") → Zapier
+  8.  lower(subject) contains "airtable" AND NOT "error en flujo"   → AirTable
+  9.  fromEmail == "cgi@tutrastero.com"                             → Sub-router "from CGI" (módulo 55):
+        9a. subject contains "Clasificación CGI -"                  → Sub-router "Clasificación CGI" (módulo 39):
+              · Módulo 54 filter (subject contains Req/Inf/Int/Mal):
+                  Busca en Airtable → carga Definiciones + Ejemplos → OpenAI gpt-4.1
+                  Compara con clasificación Airtable → actualiza evaluacion correcto/incorrecto
+                  Sub-router por tipo en asunto → etiqueta CGI-Clasificación/tipo
+              · subject contains "Otros-Otros" → CGI-Clasificación/Otros (sin OpenAI)
+        9b. subject contains "Proceso de Contratación:"             → Contratación Online
+        9c. NOT "Clasificación CGI -" AND NOT "Proceso de Contratación:" → CGI-Respuestas
+  10. lower(subject) contains "nuevo prospecto sin gestionar"        → Bitrix24
+  11. lower(fromEmail) contains "make"                              → Make
+  12. subject contains "Cobro de Moroso -" OR "Oportunidad Única -" → Bot Llamada Morosos
 """
 import asyncio
 import collections
@@ -62,16 +60,22 @@ class _FlowCaptureHandler(logging.Handler):
 _capture_handler = _FlowCaptureHandler()
 _capture_handler.setFormatter(logging.Formatter("%(message)s"))
 
+_TIPOS = ["Requerimiento", "Informativo", "Interno", "Malicioso"]
 
-# ─── Ruta compleja: Clasificación CGI (módulos 46–53 del blueprint) ───────────
+_TIPO_LABEL = {
+    "Requerimiento": config.LABEL_CGI_CLASIF_REQ,
+    "Informativo":   config.LABEL_CGI_CLASIF_INF,
+    "Interno":       config.LABEL_CGI_CLASIF_INT,
+    "Malicioso":     config.LABEL_CGI_CLASIF_MAL,
+}
 
-async def _handle_cgi_clasificacion(
-    subject: str,
-    body: str,
-) -> tuple[list[str], str]:
+
+# ─── Flujo complejo: Clasificación CGI con OpenAI (módulos 54→51→46→48→50→19→52/53→26/32) ──
+
+async def _handle_cgi_clasificacion(subject: str, body: str) -> tuple[list[str], str]:
     """
-    Replica exacta del sub-flujo "Clasificación CGI -" del blueprint.
-    Devuelve (label_ids, descripcion).
+    Réplica del sub-flujo de clasificación (módulo 54 activo — tipo en asunto).
+    Ejecuta OpenAI + actualiza Airtable evaluacion + aplica sub-etiqueta por tipo en asunto.
     """
     asunto_clasif = re.sub(r"\s+", "", subject)
 
@@ -82,23 +86,23 @@ async def _handle_cgi_clasificacion(
         max_records=1,
         view="viw8oXfMbeVIfQ8tw",
     )
-    if not records:
-        logger.warning(f"[CGI-Clasif] Sin registro en Airtable | asunto-clasif={asunto_clasif[:60]}")
-        # Sin registro no podemos evaluar — aplicamos sólo la etiqueta padre
-        label_id = _tipo_label_from_subject(subject)
-        return [config.LABEL_CGI_CLASIF] + ([label_id] if label_id else []), "CGI-Clasif/sin-registro"
 
-    record       = records[0]
-    record_id    = record["id"]
+    tipo_label = _tipo_label_from_subject(subject)
+    tipo_name  = _tipo_name_from_subject(subject)
+
+    if not records:
+        logger.warning(f"[CGI-Clasif] Sin registro Airtable | asunto-clasif={asunto_clasif[:60]}")
+        return [config.LABEL_CGI_CLASIF] + ([tipo_label] if tipo_label else []), f"CGI-Clasif/{tipo_name}(sin-registro)"
+
+    record        = records[0]
+    record_id     = record["id"]
     clasificacion = record["fields"].get("clasificación", "")
 
-    # Módulos 46 + 47 — Cargar Definiciones y agregarlas
+    # Módulos 46+47 — Definiciones, módulos 48+49 — Ejemplos
     definiciones = await airtable.list_all_records(config.AT_TBL_DEFINICIONES)
+    ejemplos     = await airtable.list_all_records(config.AT_TBL_EJEMPLOS_CLASIF)
 
-    # Módulos 48 + 49 — Cargar Ejemplos de Clasificación y agregarlos
-    ejemplos = await airtable.list_all_records(config.AT_TBL_EJEMPLOS_CLASIF)
-
-    # Módulo 50 — OpenAI re-clasifica el email
+    # Módulo 50 — OpenAI gpt-4.1
     try:
         categoria = await openai_svc.classify_email(
             subject=subject,
@@ -106,51 +110,32 @@ async def _handle_cgi_clasificacion(
             definiciones_records=definiciones,
             ejemplos_records=ejemplos,
         )
-        logger.info(f"[CGI-Clasif] OpenAI → categoria={categoria!r} | Airtable → clasificación={clasificacion!r}")
+        logger.info(f"[CGI-Clasif] OpenAI→{categoria!r} | AT→{clasificacion!r}")
     except Exception as exc:
         logger.error(f"[CGI-Clasif] Error OpenAI: {exc}")
         categoria = None
 
-    # Módulo 19 — BasicRouter "Evaluación de clasificación"
-    if categoria and clasificacion and clasificacion == categoria:
-        # Ruta correcto → Módulo 52
-        try:
-            await airtable.update_record(
-                config.AT_TBL_CLASIFICACION,
-                record_id,
-                {"evaluacion": "correcto"},
-            )
-            logger.info("[CGI-Clasif] evaluacion=correcto guardado en Airtable")
-        except Exception as exc:
-            logger.error(f"[CGI-Clasif] Error actualizando Airtable (correcto): {exc}")
-        evaluacion = "correcto"
-    else:
-        # Ruta incorrecto → Módulo 53
-        try:
-            await airtable.update_record(
-                config.AT_TBL_CLASIFICACION,
-                record_id,
-                {"evaluacion": "incorrecto"},
-            )
-            logger.info("[CGI-Clasif] evaluacion=incorrecto guardado en Airtable")
-        except Exception as exc:
-            logger.error(f"[CGI-Clasif] Error actualizando Airtable (incorrecto): {exc}")
-        evaluacion = "incorrecto"
+    # Módulo 19 — Router evaluación (correcto / incorrecto)
+    evaluacion = "correcto" if (categoria and clasificacion == categoria) else "incorrecto"
+    try:
+        await airtable.update_record(
+            config.AT_TBL_CLASIFICACION,
+            record_id,
+            {"evaluacion": evaluacion},
+        )
+        logger.info(f"[CGI-Clasif] evaluacion={evaluacion} guardado")
+    except Exception as exc:
+        logger.error(f"[CGI-Clasif] Error actualizando evaluacion: {exc}")
 
-    # Módulos 26 / 32 — Sub-router por tipo en el ASUNTO del email
-    tipo_label = _tipo_label_from_subject(subject)
-    tipo_name  = _tipo_name_from_subject(subject)
-
+    # Módulos 26/32 — Sub-router tipo en ASUNTO del email
     labels = [config.LABEL_CGI_CLASIF]
     if tipo_label:
         labels.append(tipo_label)
 
-    descripcion = f"CGI-Clasif/{tipo_name}({evaluacion})"
-    return labels, descripcion
+    return labels, f"CGI-Clasif/{tipo_name}({evaluacion})"
 
 
 def _tipo_label_from_subject(subject: str) -> str | None:
-    """Determina la sub-etiqueta de CGI Clasificación según el tipo en el asunto."""
     if "Requerimiento" in subject:
         return config.LABEL_CGI_CLASIF_REQ
     if "Informativo" in subject:
@@ -159,27 +144,59 @@ def _tipo_label_from_subject(subject: str) -> str | None:
         return config.LABEL_CGI_CLASIF_INT
     if "Malicioso" in subject:
         return config.LABEL_CGI_CLASIF_MAL
-    return config.LABEL_CGI_CLASIF_OTR
+    return None
 
 
 def _tipo_name_from_subject(subject: str) -> str:
-    if "Requerimiento" in subject:
-        return "Requerimiento"
-    if "Informativo" in subject:
-        return "Informativo"
-    if "Interno" in subject:
-        return "Interno"
-    if "Malicioso" in subject:
-        return "Malicioso"
-    return "Otros"
+    for t in _TIPOS:
+        if t in subject:
+            return t
+    return "?"
 
 
-# ─── Router principal — replica BasicRouter del blueprint ─────────────────────
+# ─── Sub-router "from CGI" (módulo 55) ────────────────────────────────────────
+
+async def _handle_from_cgi(subject: str, body: str) -> tuple[list[str], str]:
+    """
+    Replica el sub-router "from CGI" (módulo 55):
+    agrupa los 3 sub-flujos de emails de cgi@tutrastero.com.
+    """
+    labels:  list[str] = []
+    results: list[str] = []
+
+    # Sub-router "Clasificación CGI" (módulo 39)
+    if "Clasificación CGI -" in subject:
+
+        # Módulo 54 (SetVariables + filtro): sólo activa el flujo OpenAI si hay tipo en asunto
+        if any(t in subject for t in _TIPOS):
+            cgi_labels, cgi_desc = await _handle_cgi_clasificacion(subject, body)
+            labels.extend(cgi_labels)
+            results.append(cgi_desc)
+
+        # Módulo 40: "Otros-Otros" en asunto → CGI-Clasificación/Otros (sin OpenAI)
+        if "Otros-Otros" in subject:
+            labels.append(config.LABEL_CGI_CLASIF)
+            labels.append(config.LABEL_CGI_CLASIF_OTR)
+            results.append("CGI-Clasif/Otros-Otros")
+
+    # Módulo 44 — Contratos Online: subject contains "Proceso de Contratación:"
+    if "Proceso de Contratación:" in subject:
+        labels.append(config.LABEL_CONTRATACION)
+        results.append("Contratación-Online")
+
+    # Módulo 11 — Respuestas CGI: NOT Clasificación CGI AND NOT Contratación
+    if "Clasificación CGI -" not in subject and "Proceso de Contratación:" not in subject:
+        labels.append(config.LABEL_CGI_RESPUESTAS)
+        results.append("CGI-Respuestas")
+
+    return list(dict.fromkeys(labels)), ", ".join(results)
+
+
+# ─── Router principal — BasicRouter módulo 2 ──────────────────────────────────
 
 async def _route_email(email: dict) -> tuple[list[str], str]:
     """
     Evalúa TODAS las rutas del blueprint de forma independiente (no exclusivas).
-    Devuelve (labels_a_aplicar, descripcion).
     """
     from_email = email.get("fromEmail", "")
     from_name  = email.get("fromName", "")
@@ -232,36 +249,27 @@ async def _route_email(email: dict) -> tuple[list[str], str]:
         labels.append(config.LABEL_AIRTABLE)
         results.append("AirTable")
 
-    # Ruta 9 — Clasificación CGI (flujo complejo con OpenAI)
-    if "Clasificación CGI -" in subject and from_email == "cgi@tutrastero.com":
-        cgi_labels, cgi_desc = await _handle_cgi_clasificacion(subject, body)
+    # Ruta 9 — Sub-router "from CGI" (módulo 55)
+    if from_email == "cgi@tutrastero.com":
+        cgi_labels, cgi_desc = await _handle_from_cgi(subject, body)
         labels.extend(cgi_labels)
-        results.append(cgi_desc)
+        if cgi_desc:
+            results.append(cgi_desc)
 
-    # Ruta 10 — CGI Respuestas (Tu Trastero CGI que NO sea clasificación)
-    if from_name == "Tu Trastero CGI" and "Clasificación CGI -" not in subject:
-        labels.append(config.LABEL_CGI_RESPUESTAS)
-        results.append("CGI-Respuestas")
-
-    # Ruta 11 — Bitrix24
+    # Ruta 10 — Bitrix24
     if "nuevo prospecto sin gestionar" in su_lo:
         labels.append(config.LABEL_BITRIX24)
         results.append("Bitrix24")
 
-    # Ruta 12 — Make
-    if any(x in su_lo for x in ["make", "error in", "has been stopped"]):
+    # Ruta 11 — Make (fromEmail contains "make", módulo 42)
+    if "make" in fe_lo and "error in" not in fe_lo and "has been stopped" not in fe_lo:
         labels.append(config.LABEL_MAKE)
         results.append("Make")
 
-    # Ruta 13 — Bot Llamada Morosos
+    # Ruta 12 — Bot Llamada Morosos
     if "cobro de moroso -" in subject or "oportunidad única -" in subject:
         labels.append(config.LABEL_BOT_MOROSOS)
         results.append("Bot-Llamada-Morosos")
-
-    # Ruta 14 — Presupuestos y Contratación Online
-    if "proceso de contratación:" in subject:
-        labels.append(config.LABEL_CONTRATACION)
-        results.append("Contratación-Online")
 
     descripcion = ", ".join(results) if results else "Sin etiqueta"
     return list(dict.fromkeys(labels)), descripcion
@@ -280,7 +288,6 @@ async def _process_email(msg_stub: dict):
 
 async def _process_email_inner(msg_stub: dict):
     message_id = msg_stub["id"]
-
     email      = await gmail.get_email(message_id)
     from_email = email.get("fromEmail", "")
     from_name  = email.get("fromName", "")
@@ -288,18 +295,16 @@ async def _process_email_inner(msg_stub: dict):
 
     logger.info(f"[0] from={from_email} | subject={subject!r}")
 
-    # Módulo 10 — sleep 3 segundos (réplica exacta del blueprint)
+    # Módulo 10 — sleep 3 segundos
     await asyncio.sleep(3)
 
-    # BasicRouter — evalúa todas las rutas
     labels, descripcion = await _route_email(email)
 
-    # moveAnEmail → addLabelIds + removeLabelIds=["INBOX"]
     if labels:
         await gmail.apply_labels(message_id, add_labels=labels, remove_labels=["INBOX"])
-        logger.info(f"[0] Etiquetas aplicadas: {descripcion}")
+        logger.info(f"[0] Etiquetas: {descripcion}")
     else:
-        logger.info("[0] Sin ruta coincidente — email sin etiquetar")
+        logger.info("[0] Sin ruta coincidente")
 
     summaries.appendleft({
         "time":       datetime.datetime.now().strftime("%d/%m %H:%M:%S"),
