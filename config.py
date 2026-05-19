@@ -13,12 +13,16 @@ GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
 GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN", "")
 GMAIL_ACCOUNT       = "sistemas@tutrastero.com"
 
+# ─── OpenAI ───────────────────────────────────────────────────────────────────
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
 # ─── Airtable ─────────────────────────────────────────────────────────────────
 AIRTABLE_TOKEN   = os.getenv("AIRTABLE_TOKEN", "")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "appMNiPmgPOBdXZxt")
 
-AT_TBL_CLASIFICACION = "tblKSSUdMWhL1n2Sw"   # Clasificación (Email CGI)
-AT_TBL_DEFINICIONES  = "tblcU03Ozh0QzuRGe"   # BC_Definiciones
+AT_TBL_CLASIFICACION  = "tblKSSUdMWhL1n2Sw"   # Clasificación (Email CGI)
+AT_TBL_DEFINICIONES   = "tblcU03Ozh0QzuRGe"   # BC_Definiciones
+AT_TBL_EJEMPLOS_CLASIF = "tblFs49ab5AFo4x4r"  # BC_Ejemplos Clasificación
 
 # ─── Gmail Label IDs (sistemas@tutrastero.com) ────────────────────────────────
 LABEL_ANTIGRAVITY    = "Label_7997386001421869927"

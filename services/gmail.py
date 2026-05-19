@@ -1,10 +1,15 @@
 """
 services/gmail.py — Wrapper asíncrono sobre Gmail API (sistemas@tutrastero.com).
 
-Las llamadas al SDK de Google son síncronas; se ejecutan en hilo con asyncio.to_thread().
+Replica el trigger "triggerWatchNewEmails" de Make.com:
+  · Primera ejecución: procesa hasta 20 emails recientes del INBOX y almacena historyId.
+  · Ejecuciones siguientes: usa la History API para obtener sólo los mensajes NUEVOS
+    desde el último historyId conocido (sin filtro UNREAD, sin etiqueta extra).
+  · markSeen: false — los emails NO se marcan como leídos al procesarlos.
 """
 import asyncio
 import base64
+import os
 import re
 
 from google.oauth2.credentials import Credentials
@@ -15,7 +20,28 @@ import config
 
 _SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
-_SISTEMAS_PROCESADO_LABEL_ID: str | None = None
+_STATE_DIR  = ".state"
+_STATE_FILE = os.path.join(_STATE_DIR, "history_id.txt")
+
+_last_history_id: str | None = None
+
+
+# ─── Estado persistente ───────────────────────────────────────────────────────
+
+def _load_state():
+    global _last_history_id
+    if os.path.exists(_STATE_FILE):
+        data = open(_STATE_FILE).read().strip()
+        _last_history_id = data or None
+
+
+def _save_state():
+    os.makedirs(_STATE_DIR, exist_ok=True)
+    with open(_STATE_FILE, "w") as f:
+        f.write(_last_history_id or "")
+
+
+_load_state()
 
 
 # ─── Autenticación ────────────────────────────────────────────────────────────
@@ -85,15 +111,52 @@ def _parse_message(msg: dict) -> dict:
 
 # ─── Funciones síncronas ──────────────────────────────────────────────────────
 
-def _list_unread_sync() -> list[dict]:
+def _list_new_emails_sync() -> list[dict]:
+    """
+    Replica triggerWatchNewEmails de Make.com (criteria="all", markSeen=false).
+    Primera llamada: devuelve últimos 20 mensajes del INBOX y guarda historyId.
+    Siguientes: usa History API para devolver sólo los mensajes añadidos al INBOX.
+    """
+    global _last_history_id
     svc = _build_service()
-    res = svc.users().messages().list(
-        userId="me",
-        labelIds=["INBOX", "UNREAD"],
-        q="-label:Sistemas-Procesado",
-        maxResults=20,
-    ).execute()
-    return res.get("messages", [])
+
+    if _last_history_id is None:
+        res = svc.users().messages().list(
+            userId="me",
+            labelIds=["INBOX"],
+            maxResults=20,
+        ).execute()
+        profile = svc.users().getProfile(userId="me").execute()
+        _last_history_id = profile["historyId"]
+        _save_state()
+        return res.get("messages", [])
+
+    try:
+        history_res = svc.users().history().list(
+            userId="me",
+            startHistoryId=_last_history_id,
+            historyTypes=["messageAdded"],
+            labelId="INBOX",
+        ).execute()
+
+        new_history_id = history_res.get("historyId", _last_history_id)
+        _last_history_id = new_history_id
+        _save_state()
+
+        seen: dict[str, bool] = {}
+        for record in history_res.get("history", []):
+            for msg_added in record.get("messagesAdded", []):
+                msg = msg_added.get("message", {})
+                if "INBOX" in msg.get("labelIds", []):
+                    seen[msg["id"]] = True
+
+        return [{"id": mid} for mid in seen]
+
+    except Exception as exc:
+        if "404" in str(exc) or "historyId" in str(exc).lower():
+            _last_history_id = None
+            _save_state()
+        raise
 
 
 def _get_email_sync(message_id: str) -> dict:
@@ -102,21 +165,6 @@ def _get_email_sync(message_id: str) -> dict:
         userId="me", id=message_id, format="full"
     ).execute()
     return _parse_message(msg)
-
-
-def _get_or_create_label_sync(name: str) -> str:
-    global _SISTEMAS_PROCESADO_LABEL_ID
-    if _SISTEMAS_PROCESADO_LABEL_ID:
-        return _SISTEMAS_PROCESADO_LABEL_ID
-    svc = _build_service()
-    labels = svc.users().labels().list(userId="me").execute().get("labels", [])
-    for label in labels:
-        if label["name"].lower() == name.lower():
-            _SISTEMAS_PROCESADO_LABEL_ID = label["id"]
-            return label["id"]
-    result = svc.users().labels().create(userId="me", body={"name": name}).execute()
-    _SISTEMAS_PROCESADO_LABEL_ID = result["id"]
-    return _SISTEMAS_PROCESADO_LABEL_ID
 
 
 def _apply_labels_sync(
@@ -133,16 +181,6 @@ def _apply_labels_sync(
     ).execute()
 
 
-def _mark_processed_sync(message_id: str):
-    label_id = _get_or_create_label_sync("Sistemas-Procesado")
-    svc = _build_service()
-    svc.users().messages().modify(
-        userId="me",
-        id=message_id,
-        body={"addLabelIds": [label_id], "removeLabelIds": ["UNREAD"]},
-    ).execute()
-
-
 def _setup_watch_sync(topic_name: str) -> dict:
     svc = _build_service()
     return svc.users().watch(userId="me", body={
@@ -154,8 +192,8 @@ def _setup_watch_sync(topic_name: str) -> dict:
 
 # ─── API pública asíncrona ────────────────────────────────────────────────────
 
-async def list_unread_emails() -> list[dict]:
-    return await asyncio.to_thread(_list_unread_sync)
+async def list_new_emails() -> list[dict]:
+    return await asyncio.to_thread(_list_new_emails_sync)
 
 
 async def get_email(message_id: str) -> dict:
@@ -167,18 +205,7 @@ async def apply_labels(
     add_labels: list[str],
     remove_labels: list[str] = None,
 ):
-    """Aplica/quita etiquetas a un mensaje Gmail."""
     await asyncio.to_thread(_apply_labels_sync, message_id, add_labels, remove_labels or [])
-
-
-async def move_to_label(message_id: str, label_id: str):
-    """Mueve el email de INBOX a la etiqueta destino (replica moveAnEmail del blueprint)."""
-    await asyncio.to_thread(_apply_labels_sync, message_id, [label_id], ["INBOX"])
-
-
-async def mark_processed(message_id: str):
-    """Añade Sistemas-Procesado y quita UNREAD para evitar reprocesar."""
-    await asyncio.to_thread(_mark_processed_sync, message_id)
 
 
 async def setup_watch(topic_name: str) -> dict:
