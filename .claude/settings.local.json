@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\Sistemas\\\\Documents\\\\FastAPI\\\\FastAPI - Clasificacion Email Sistemas\\\\handlers\")",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\Sistemas\\\\Documents\\\\FastAPI\\\\FastAPI - Clasificacion Email Sistemas\\\\services\")",
+      "Bash(Write-Host \"Directories created\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\Sistemas\\\\Documents\\\\FastAPI\\\\FastAPI - Clasificacion Email Sistemas\\\\handlers\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\Sistemas\\\\Documents\\\\FastAPI\\\\FastAPI - Clasificacion Email Sistemas\\\\services\")",
+      "Bash(ssh sistemas@tutrastero.com \"cat /etc/systemd/system/email-cgi.service\")",
+      "Bash(sshpass -p 'TuRasero.com' ssh -o StrictHostKeyChecking=no paucosta@192.168.2.197 \"cat /etc/systemd/system/email-cgi.service\")",
+      "Bash(find \"C:\\\\Users\\\\Sistemas\\\\Documents\" -name \"*.blueprint.json\" 2>/dev/null | head -5)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\Sistemas\\\\Documents\\\\*.blueprint.json\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\Sistemas\\\\Downloads\\\\*.blueprint.json\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\Sistemas\\\\Desktop\\\\*.blueprint.json\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit -m 'chore: añadir carpeta blueprints/ y CLAUDE.md con convención de actualización *)"
+    ]
+  }
+}
