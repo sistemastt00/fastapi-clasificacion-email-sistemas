@@ -60,7 +60,7 @@ class _FlowCaptureHandler(logging.Handler):
 _capture_handler = _FlowCaptureHandler()
 _capture_handler.setFormatter(logging.Formatter("%(message)s"))
 
-_TIPOS = ["-accion-", "-informacion-"]  # módulo 54 filter
+_TIPOS = ["- accion -", "- informacion -"]  # módulo 54 filter
 
 
 # ─── Flujo complejo: Clasificación CGI con OpenAI (módulos 54→51→46→48→50→19→52/53→26/32) ──
@@ -129,17 +129,17 @@ async def _handle_cgi_clasificacion(subject: str, body: str) -> tuple[list[str],
 
 
 def _tipo_label_from_subject(subject: str) -> str | None:
-    if "-accion-" in subject:
+    if "- accion -" in subject:
         return config.LABEL_CGI_CLASIF_REQ
-    if "-informacion-" in subject:
+    if "- informacion -" in subject:
         return config.LABEL_CGI_CLASIF_INF
     return None
 
 
 def _tipo_name_from_subject(subject: str) -> str:
-    if "-accion-" in subject:
+    if "- accion -" in subject:
         return "Requerimiento"
-    if "-informacion-" in subject:
+    if "- informacion -" in subject:
         return "Informativo"
     return "?"
 
