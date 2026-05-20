@@ -19,10 +19,10 @@ Rutas del BasicRouter principal (módulo 2) — no exclusivas:
   8.  lower(subject) contains "airtable" AND NOT "error en flujo"   → AirTable
   9.  fromEmail == "cgi@tutrastero.com"                             → Sub-router "from CGI" (módulo 55):
         9a. subject contains "Clasificación CGI -"                  → Sub-router "Clasificación CGI" (módulo 39):
-              · Módulo 54 filter (subject contains Req/Inf/Int/Mal):
+              · Módulo 54 filter (subject contains Req/Inf/Int/Mal — sin cambiar):
                   Busca en Airtable → carga Definiciones + Ejemplos → OpenAI gpt-4.1
                   Compara con clasificación Airtable → actualiza evaluacion correcto/incorrecto
-                  Sub-router por tipo en asunto → etiqueta CGI-Clasificación/tipo
+                  Sub-router por tipo en asunto: -accion- → Requerimiento, -informacion- → Informativo
               · subject contains "Otros-Otros" → CGI-Clasificación/Otros (sin OpenAI)
         9b. subject contains "Proceso de Contratación:"             → Contratación Online
         9c. NOT "Clasificación CGI -" AND NOT "Proceso de Contratación:" → CGI-Respuestas
@@ -60,14 +60,7 @@ class _FlowCaptureHandler(logging.Handler):
 _capture_handler = _FlowCaptureHandler()
 _capture_handler.setFormatter(logging.Formatter("%(message)s"))
 
-_TIPOS = ["Requerimiento", "Informativo", "Interno", "Malicioso"]
-
-_TIPO_LABEL = {
-    "Requerimiento": config.LABEL_CGI_CLASIF_REQ,
-    "Informativo":   config.LABEL_CGI_CLASIF_INF,
-    "Interno":       config.LABEL_CGI_CLASIF_INT,
-    "Malicioso":     config.LABEL_CGI_CLASIF_MAL,
-}
+_TIPOS = ["Requerimiento", "Informativo", "Interno", "Malicioso"]  # módulo 54 filter (unchanged)
 
 
 # ─── Flujo complejo: Clasificación CGI con OpenAI (módulos 54→51→46→48→50→19→52/53→26/32) ──
@@ -136,21 +129,18 @@ async def _handle_cgi_clasificacion(subject: str, body: str) -> tuple[list[str],
 
 
 def _tipo_label_from_subject(subject: str) -> str | None:
-    if "Requerimiento" in subject:
+    if "-accion-" in subject:
         return config.LABEL_CGI_CLASIF_REQ
-    if "Informativo" in subject:
+    if "-informacion-" in subject:
         return config.LABEL_CGI_CLASIF_INF
-    if "Interno" in subject:
-        return config.LABEL_CGI_CLASIF_INT
-    if "Malicioso" in subject:
-        return config.LABEL_CGI_CLASIF_MAL
     return None
 
 
 def _tipo_name_from_subject(subject: str) -> str:
-    for t in _TIPOS:
-        if t in subject:
-            return t
+    if "-accion-" in subject:
+        return "Requerimiento"
+    if "-informacion-" in subject:
+        return "Informativo"
     return "?"
 
 
