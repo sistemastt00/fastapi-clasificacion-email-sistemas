@@ -19,7 +19,7 @@ Rutas del BasicRouter principal (módulo 2) — no exclusivas:
   8.  lower(subject) contains "airtable" AND NOT "error en flujo"   → AirTable
   9.  fromEmail == "cgi@tutrastero.com"                             → Sub-router "from CGI" (módulo 55):
         9a. subject contains "Clasificación CGI -"                  → Sub-router "Clasificación CGI" (módulo 39):
-              · Módulo 54 filter (subject contains Req/Inf/Int/Mal — sin cambiar):
+              · Módulo 54 filter (subject contains -accion- OR -informacion-):
                   Busca en Airtable → carga Definiciones + Ejemplos → OpenAI gpt-4.1
                   Compara con clasificación Airtable → actualiza evaluacion correcto/incorrecto
                   Sub-router por tipo en asunto: -accion- → Requerimiento, -informacion- → Informativo
@@ -60,7 +60,7 @@ class _FlowCaptureHandler(logging.Handler):
 _capture_handler = _FlowCaptureHandler()
 _capture_handler.setFormatter(logging.Formatter("%(message)s"))
 
-_TIPOS = ["Requerimiento", "Informativo", "Interno", "Malicioso"]  # módulo 54 filter (unchanged)
+_TIPOS = ["-accion-", "-informacion-"]  # módulo 54 filter
 
 
 # ─── Flujo complejo: Clasificación CGI con OpenAI (módulos 54→51→46→48→50→19→52/53→26/32) ──
