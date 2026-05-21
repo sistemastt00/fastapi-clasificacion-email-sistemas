@@ -294,7 +294,8 @@ async def _process_email_inner(msg_stub: dict):
         await gmail.apply_labels(message_id, add_labels=labels, remove_labels=["INBOX"])
         logger.info(f"[0] Etiquetas: {descripcion}")
     else:
-        logger.info("[0] Sin ruta coincidente")
+        await gmail.apply_labels(message_id, add_labels=[config.LABEL_SISTEMAS_PROCESADO], remove_labels=[])
+        logger.info("[0] Sin ruta — etiquetado Sistemas-Procesado (en INBOX)")
 
     summaries.appendleft({
         "time":       datetime.datetime.now().strftime("%d/%m %H:%M:%S"),

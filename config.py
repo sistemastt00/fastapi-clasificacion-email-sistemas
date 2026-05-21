@@ -43,7 +43,8 @@ LABEL_CGI_RESPUESTAS = "Label_6979103201746992157"  # CGI - Respuestas
 LABEL_BITRIX24       = "Label_3590730105972156662"
 LABEL_MAKE           = "Label_6974528327848552321"
 LABEL_BOT_MOROSOS    = "Label_6267798719667247739"  # Bot Llamada Morosos
-LABEL_CONTRATACION   = "Label_8799039038660883083"  # Presupuestos y Contratación Online
+LABEL_CONTRATACION      = "Label_8799039038660883083"  # Presupuestos y Contratación Online
+LABEL_SISTEMAS_PROCESADO = "Label_2"                  # Sistemas-Procesado (emails sin clasificar)
 
 # ─── Deploy webhook ───────────────────────────────────────────────────────────
 DEPLOY_TOKEN = os.getenv("DEPLOY_TOKEN", "")
