@@ -156,39 +156,39 @@ async def _handle_from_cgi(subject: str, body: str) -> tuple[list[str], str]:
 
     # Sub-router "Clasificación CGI" (módulo 39)
     if "Clasificación CGI -" in subject:
-        logger.info(f"    ✓ CGI-39: Clasificación CGI")
+        logger.info(f"    ✅ CGI-39: Clasificación CGI")
 
         # Módulo 54 (SetVariables + filtro): sólo activa el flujo OpenAI si hay tipo en asunto
         if any(t in subject for t in _TIPOS):
-            logger.info(f"    ✓ CGI-54: tipo en asunto → OpenAI")
+            logger.info(f"    ✅ CGI-54: tipo en asunto → OpenAI")
             cgi_labels, cgi_desc = await _handle_cgi_clasificacion(subject, body)
             labels.extend(cgi_labels)
             results.append(cgi_desc)
         else:
-            logger.info(f"    · CGI-54: sin tipo reconocido → sin OpenAI")
+            logger.info(f"    ⬜ CGI-54: sin tipo reconocido → sin OpenAI")
 
         # Módulo 40: "Otros-Otros" en asunto → CGI-Clasificación/Otros (sin OpenAI)
         if "Otros-Otros" in subject:
             labels.append(config.LABEL_CGI_CLASIF)
             labels.append(config.LABEL_CGI_CLASIF_OTR)
             results.append("CGI-Clasif/Otros-Otros")
-            logger.info(f"    ✓ CGI-40: Otros-Otros")
+            logger.info(f"    ✅ CGI-40: Otros-Otros")
     else:
-        logger.info(f"    · CGI-39: no es Clasificación CGI")
+        logger.info(f"    ⬜ CGI-39: no es Clasificación CGI")
 
     # Módulo 44 — Contratos Online: subject contains "Proceso de Contratación:"
     if "Proceso de Contratación:" in subject:
         labels.append(config.LABEL_CONTRATACION)
         results.append("Contratación-Online")
-        logger.info(f"    ✓ CGI-44: Contratación Online")
+        logger.info(f"    ✅ CGI-44: Contratación Online")
     else:
-        logger.info(f"    · CGI-44: no es Contratación")
+        logger.info(f"    ⬜ CGI-44: no es Contratación")
 
     # Módulo 11 — Respuestas CGI: NOT Clasificación CGI AND NOT Contratación
     if "Clasificación CGI -" not in subject and "Proceso de Contratación:" not in subject:
         labels.append(config.LABEL_CGI_RESPUESTAS)
         results.append("CGI-Respuestas")
-        logger.info(f"    ✓ CGI-11: Respuestas CGI")
+        logger.info(f"    ✅ CGI-11: Respuestas CGI")
 
     return list(dict.fromkeys(labels)), ", ".join(results)
 
@@ -212,10 +212,10 @@ async def _route_email(email: dict) -> tuple[list[str], str]:
 
     def _hit(ruta: str):
         results.append(ruta)
-        logger.info(f"  ✓ {ruta}")
+        logger.info(f"  ✅ {ruta}")
 
     def _miss(ruta: str):
-        logger.info(f"  · {ruta}")
+        logger.info(f"  ⬜ {ruta}")
 
     # Ruta 1 — Antigravity
     if "antigravity" in fe_lo:
@@ -267,7 +267,7 @@ async def _route_email(email: dict) -> tuple[list[str], str]:
 
     # Ruta 9 — Sub-router "from CGI" (módulo 55)
     if from_email == "cgi@tutrastero.com":
-        logger.info(f"  ✓ CGI → sub-router")
+        logger.info(f"  ✅ CGI → sub-router 🔀")
         cgi_labels, cgi_desc = await _handle_from_cgi(subject, body)
         labels.extend(cgi_labels)
         if cgi_desc:
