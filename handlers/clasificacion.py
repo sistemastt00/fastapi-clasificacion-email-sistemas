@@ -156,28 +156,39 @@ async def _handle_from_cgi(subject: str, body: str) -> tuple[list[str], str]:
 
     # Sub-router "Clasificación CGI" (módulo 39)
     if "Clasificación CGI -" in subject:
+        logger.info(f"    ✓ CGI-39: Clasificación CGI")
 
         # Módulo 54 (SetVariables + filtro): sólo activa el flujo OpenAI si hay tipo en asunto
         if any(t in subject for t in _TIPOS):
+            logger.info(f"    ✓ CGI-54: tipo en asunto → OpenAI")
             cgi_labels, cgi_desc = await _handle_cgi_clasificacion(subject, body)
             labels.extend(cgi_labels)
             results.append(cgi_desc)
+        else:
+            logger.info(f"    · CGI-54: sin tipo reconocido → sin OpenAI")
 
         # Módulo 40: "Otros-Otros" en asunto → CGI-Clasificación/Otros (sin OpenAI)
         if "Otros-Otros" in subject:
             labels.append(config.LABEL_CGI_CLASIF)
             labels.append(config.LABEL_CGI_CLASIF_OTR)
             results.append("CGI-Clasif/Otros-Otros")
+            logger.info(f"    ✓ CGI-40: Otros-Otros")
+    else:
+        logger.info(f"    · CGI-39: no es Clasificación CGI")
 
     # Módulo 44 — Contratos Online: subject contains "Proceso de Contratación:"
     if "Proceso de Contratación:" in subject:
         labels.append(config.LABEL_CONTRATACION)
         results.append("Contratación-Online")
+        logger.info(f"    ✓ CGI-44: Contratación Online")
+    else:
+        logger.info(f"    · CGI-44: no es Contratación")
 
     # Módulo 11 — Respuestas CGI: NOT Clasificación CGI AND NOT Contratación
     if "Clasificación CGI -" not in subject and "Proceso de Contratación:" not in subject:
         labels.append(config.LABEL_CGI_RESPUESTAS)
         results.append("CGI-Respuestas")
+        logger.info(f"    ✓ CGI-11: Respuestas CGI")
 
     return list(dict.fromkeys(labels)), ", ".join(results)
 
@@ -199,67 +210,88 @@ async def _route_email(email: dict) -> tuple[list[str], str]:
     labels:  list[str] = []
     results: list[str] = []
 
+    def _hit(ruta: str):
+        results.append(ruta)
+        logger.info(f"  ✓ {ruta}")
+
+    def _miss(ruta: str):
+        logger.info(f"  · {ruta}")
+
     # Ruta 1 — Antigravity
     if "antigravity" in fe_lo:
-        labels.append(config.LABEL_ANTIGRAVITY)
-        results.append("Antigravity")
+        labels.append(config.LABEL_ANTIGRAVITY); _hit("Antigravity")
+    else:
+        _miss("Antigravity")
 
     # Ruta 2 — MasIP
     if "masip." in fe_lo:
-        labels.append(config.LABEL_MASIP)
-        results.append("MasIP")
+        labels.append(config.LABEL_MASIP); _hit("MasIP")
+    else:
+        _miss("MasIP")
 
     # Ruta 3 — Microsoft (excluye Power BI)
     if "microsoft" in fn_lo and "power bi" not in fn_lo:
-        labels.append(config.LABEL_MICROSOFT)
-        results.append("Microsoft")
+        labels.append(config.LABEL_MICROSOFT); _hit("Microsoft")
+    else:
+        _miss("Microsoft")
 
     # Ruta 4 — OpenAI
     if "openai." in fe_lo or "openai" in su_lo:
-        labels.append(config.LABEL_OPENAI)
-        results.append("OpenAI")
+        labels.append(config.LABEL_OPENAI); _hit("OpenAI")
+    else:
+        _miss("OpenAI")
 
     # Ruta 5 — RADical Systems
     if "radicalsys.com" in fe_lo:
-        labels.append(config.LABEL_RADICAL)
-        results.append("RADical Systems")
+        labels.append(config.LABEL_RADICAL); _hit("RADical Systems")
+    else:
+        _miss("RADical Systems")
 
     # Ruta 6 — Reportes Power Bi
     if "power bi" in fn_lo:
-        labels.append(config.LABEL_POWER_BI)
-        results.append("Reportes Power Bi")
+        labels.append(config.LABEL_POWER_BI); _hit("Reportes Power Bi")
+    else:
+        _miss("Reportes Power Bi")
 
     # Ruta 7 — Zapier
     if "zapier" in su_lo or (fn_lo == "zapier" and "error on your" not in su_lo):
-        labels.append(config.LABEL_ZAPIER)
-        results.append("Zapier")
+        labels.append(config.LABEL_ZAPIER); _hit("Zapier")
+    else:
+        _miss("Zapier")
 
     # Ruta 8 — AirTable
     if "airtable" in su_lo and "error en flujo" not in su_lo:
-        labels.append(config.LABEL_AIRTABLE)
-        results.append("AirTable")
+        labels.append(config.LABEL_AIRTABLE); _hit("AirTable")
+    else:
+        _miss("AirTable")
 
     # Ruta 9 — Sub-router "from CGI" (módulo 55)
     if from_email == "cgi@tutrastero.com":
+        logger.info(f"  ✓ CGI → sub-router")
         cgi_labels, cgi_desc = await _handle_from_cgi(subject, body)
         labels.extend(cgi_labels)
         if cgi_desc:
             results.append(cgi_desc)
+    else:
+        _miss("CGI")
 
     # Ruta 10 — Bitrix24
     if "nuevo prospecto sin gestionar" in su_lo:
-        labels.append(config.LABEL_BITRIX24)
-        results.append("Bitrix24")
+        labels.append(config.LABEL_BITRIX24); _hit("Bitrix24")
+    else:
+        _miss("Bitrix24")
 
     # Ruta 11 — Make (fromEmail contains "make", módulo 42)
     if "make" in fe_lo and "error in" not in fe_lo and "has been stopped" not in fe_lo:
-        labels.append(config.LABEL_MAKE)
-        results.append("Make")
+        labels.append(config.LABEL_MAKE); _hit("Make")
+    else:
+        _miss("Make")
 
     # Ruta 12 — Bot Llamada Morosos
     if "cobro de moroso -" in subject or "oportunidad única -" in subject:
-        labels.append(config.LABEL_BOT_MOROSOS)
-        results.append("Bot-Llamada-Morosos")
+        labels.append(config.LABEL_BOT_MOROSOS); _hit("Bot-Llamada-Morosos")
+    else:
+        _miss("Bot-Llamada-Morosos")
 
     descripcion = ", ".join(results) if results else "Sin etiqueta"
     return list(dict.fromkeys(labels)), descripcion
