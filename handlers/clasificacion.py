@@ -28,7 +28,7 @@ Rutas del BasicRouter principal (módulo 2) — no exclusivas:
         9c. NOT "Clasificación CGI -" AND NOT "Proceso de Contratación:" → CGI-Respuestas
   10. lower(subject) contains "nuevo prospecto sin gestionar"        → Bitrix24
   11. lower(fromEmail) contains "make"                              → Make
-  12. subject contains "Cobro de Moroso -" OR "Oportunidad Única -" → Bot Llamada Morosos
+  12. fromEmail == "contabilidad@tutrastero.com" OR subject contains "Cobro de Moroso" OR "Oportunidad Única -" → Bot Llamada Morosos
 """
 import asyncio
 import collections
@@ -288,7 +288,7 @@ async def _route_email(email: dict) -> tuple[list[str], str]:
         _miss("Make")
 
     # Ruta 12 — Bot Llamada Morosos
-    if "cobro de moroso -" in subject or "oportunidad única -" in subject:
+    if from_email == "contabilidad@tutrastero.com" or "cobro de moroso" in su_lo or "oportunidad única -" in subject:
         labels.append(config.LABEL_BOT_MOROSOS); _hit("Bot-Llamada-Morosos")
     else:
         _miss("Bot-Llamada-Morosos")
