@@ -7,44 +7,44 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ─── Gmail OAuth2 (cuenta sistemas@tutrastero.com) ────────────────────────────
+# ─── Gmail OAuth2 ─────────────────────────────────────────────────────────────
 GMAIL_CLIENT_ID     = os.getenv("GMAIL_CLIENT_ID", "")
 GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
 GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN", "")
-GMAIL_ACCOUNT       = "sistemas@tutrastero.com"
+GMAIL_ACCOUNT       = os.getenv("GMAIL_ACCOUNT", "sistemas@tutrastero.com")
 
 # ─── OpenAI ───────────────────────────────────────────────────────────────────
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # ─── Airtable ─────────────────────────────────────────────────────────────────
 AIRTABLE_TOKEN   = os.getenv("AIRTABLE_TOKEN", "")
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "appMNiPmgPOBdXZxt")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "")
 
-AT_TBL_CLASIFICACION  = "tblKSSUdMWhL1n2Sw"   # Clasificación (Email CGI)
-AT_TBL_DEFINICIONES   = "tblcU03Ozh0QzuRGe"   # BC_Definiciones
-AT_TBL_EJEMPLOS_CLASIF = "tblFs49ab5AFo4x4r"  # BC_Ejemplos Clasificación
+AT_TBL_CLASIFICACION   = os.getenv("AT_TBL_CLASIFICACION", "")
+AT_TBL_DEFINICIONES    = os.getenv("AT_TBL_DEFINICIONES", "")
+AT_TBL_EJEMPLOS_CLASIF = os.getenv("AT_TBL_EJEMPLOS_CLASIF", "")
 
 # ─── Gmail Label IDs (sistemas@tutrastero.com) ────────────────────────────────
-LABEL_ANTIGRAVITY    = "Label_7997386001421869927"
-LABEL_MASIP          = "Label_2962354931939249799"
-LABEL_MICROSOFT      = "Label_5254690772725038610"
-LABEL_OPENAI         = "Label_1106210798511103896"
-LABEL_RADICAL        = "Label_1929032039141863806"
-LABEL_POWER_BI       = "Label_3205035227754163668"
-LABEL_ZAPIER         = "Label_2731391320599546679"
-LABEL_AIRTABLE       = "Label_1436498337126737124"
-LABEL_CGI_CLASIF     = "Label_11758837844116755"    # CGI - Clasificación (padre)
-LABEL_CGI_CLASIF_REQ = "Label_1352616144555492539"  # CGI - Clasificación/Requerimiento
-LABEL_CGI_CLASIF_INF = "Label_3622155732607941100"  # CGI - Clasificación/Informativo
-LABEL_CGI_CLASIF_INT = "Label_2253500933509770866"  # CGI - Clasificación/Interno
-LABEL_CGI_CLASIF_MAL = "Label_8979777093010278871"  # CGI - Clasificación/Malicioso
-LABEL_CGI_CLASIF_OTR = "Label_677008129193176150"   # CGI - Clasificación/Otros
-LABEL_CGI_RESPUESTAS = "Label_6979103201746992157"  # CGI - Respuestas
-LABEL_BITRIX24       = "Label_3590730105972156662"
-LABEL_MAKE           = "Label_6974528327848552321"
-LABEL_BOT_MOROSOS    = "Label_6267798719667247739"  # Bot Llamada Morosos
-LABEL_CONTRATACION      = "Label_8799039038660883083"  # Presupuestos y Contratación Online
-LABEL_SISTEMAS_PROCESADO = "Label_2"                  # Sistemas-Procesado (emails sin clasificar)
+LABEL_ANTIGRAVITY        = os.getenv("LABEL_ANTIGRAVITY", "")
+LABEL_MASIP              = os.getenv("LABEL_MASIP", "")
+LABEL_MICROSOFT          = os.getenv("LABEL_MICROSOFT", "")
+LABEL_OPENAI             = os.getenv("LABEL_OPENAI", "")
+LABEL_RADICAL            = os.getenv("LABEL_RADICAL", "")
+LABEL_POWER_BI           = os.getenv("LABEL_POWER_BI", "")
+LABEL_ZAPIER             = os.getenv("LABEL_ZAPIER", "")
+LABEL_AIRTABLE           = os.getenv("LABEL_AIRTABLE", "")
+LABEL_CGI_CLASIF         = os.getenv("LABEL_CGI_CLASIF", "")
+LABEL_CGI_CLASIF_REQ     = os.getenv("LABEL_CGI_CLASIF_REQ", "")
+LABEL_CGI_CLASIF_INF     = os.getenv("LABEL_CGI_CLASIF_INF", "")
+LABEL_CGI_CLASIF_INT     = os.getenv("LABEL_CGI_CLASIF_INT", "")
+LABEL_CGI_CLASIF_MAL     = os.getenv("LABEL_CGI_CLASIF_MAL", "")
+LABEL_CGI_CLASIF_OTR     = os.getenv("LABEL_CGI_CLASIF_OTR", "")
+LABEL_CGI_RESPUESTAS     = os.getenv("LABEL_CGI_RESPUESTAS", "")
+LABEL_BITRIX24           = os.getenv("LABEL_BITRIX24", "")
+LABEL_MAKE               = os.getenv("LABEL_MAKE", "")
+LABEL_BOT_MOROSOS        = os.getenv("LABEL_BOT_MOROSOS", "")
+LABEL_CONTRATACION       = os.getenv("LABEL_CONTRATACION", "")
+LABEL_SISTEMAS_PROCESADO = os.getenv("LABEL_SISTEMAS_PROCESADO", "")
 
 # ─── Deploy webhook ───────────────────────────────────────────────────────────
 DEPLOY_TOKEN = os.getenv("DEPLOY_TOKEN", "")
