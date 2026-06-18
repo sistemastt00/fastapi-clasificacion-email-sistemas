@@ -71,29 +71,37 @@ async def _handle_cgi_clasificacion(subject: str, body: str) -> tuple[list[str],
     Ejecuta OpenAI + actualiza Airtable evaluacion + aplica sub-etiqueta por tipo en asunto.
     """
     asunto_clasif = re.sub(r"\s+", "", subject)
-
-    # Módulo 51 — Buscar registro en Airtable Clasificación
-    records = await airtable.search_records(
-        config.AT_TBL_CLASIFICACION,
-        formula=f'{{asunto-clasif}}="{asunto_clasif}"',
-        max_records=1,
-        view="viw8oXfMbeVIfQ8tw",
-    )
-
     tipo_label = _tipo_label_from_subject(subject)
     tipo_name  = _tipo_name_from_subject(subject)
+    fallback   = [config.LABEL_CGI_CLASIF] + ([tipo_label] if tipo_label else [])
+
+    # Módulo 51 — Buscar registro en Airtable Clasificación
+    try:
+        records = await airtable.search_records(
+            config.AT_TBL_CLASIFICACION,
+            formula=f'{{asunto-clasif}}="{asunto_clasif}"',
+            max_records=1,
+            view="viw8oXfMbeVIfQ8tw",
+        )
+    except Exception as exc:
+        logger.error(f"[CGI-Clasif] Error Airtable search: {exc}")
+        return fallback, f"CGI-Clasif/{tipo_name}(error-at-search)"
 
     if not records:
         logger.warning(f"[CGI-Clasif] Sin registro Airtable | asunto-clasif={asunto_clasif[:60]}")
-        return [config.LABEL_CGI_CLASIF] + ([tipo_label] if tipo_label else []), f"CGI-Clasif/{tipo_name}(sin-registro)"
+        return fallback, f"CGI-Clasif/{tipo_name}(sin-registro)"
 
     record        = records[0]
     record_id     = record["id"]
     clasificacion = record["fields"].get("clasificación", "")
 
     # Módulos 46+47 — Definiciones, módulos 48+49 — Ejemplos
-    definiciones = await airtable.list_all_records(config.AT_TBL_DEFINICIONES)
-    ejemplos     = await airtable.list_all_records(config.AT_TBL_EJEMPLOS_CLASIF)
+    try:
+        definiciones = await airtable.list_all_records(config.AT_TBL_DEFINICIONES)
+        ejemplos     = await airtable.list_all_records(config.AT_TBL_EJEMPLOS_CLASIF)
+    except Exception as exc:
+        logger.error(f"[CGI-Clasif] Error Airtable list definiciones/ejemplos: {exc}")
+        return fallback, f"CGI-Clasif/{tipo_name}(error-at-list)"
 
     # Módulo 50 — OpenAI gpt-4.1
     try:
@@ -268,10 +276,15 @@ async def _route_email(email: dict) -> tuple[list[str], str]:
     # Ruta 9 — Sub-router "from CGI" (módulo 55)
     if from_email == "cgi@tutrastero.com":
         logger.info(f"  ✅ CGI → sub-router 🔀")
-        cgi_labels, cgi_desc = await _handle_from_cgi(subject, body)
-        labels.extend(cgi_labels)
-        if cgi_desc:
-            results.append(cgi_desc)
+        try:
+            cgi_labels, cgi_desc = await _handle_from_cgi(subject, body)
+            labels.extend(cgi_labels)
+            if cgi_desc:
+                results.append(cgi_desc)
+        except Exception as exc:
+            logger.error(f"  ❌ CGI sub-router error: {exc}", exc_info=True)
+            labels.append(config.LABEL_CGI_CLASIF)
+            results.append("CGI(error)")
     else:
         _miss("CGI")
 

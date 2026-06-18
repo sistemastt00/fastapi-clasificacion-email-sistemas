@@ -192,6 +192,21 @@ def _setup_watch_sync(topic_name: str) -> dict:
 
 # ─── API pública asíncrona ────────────────────────────────────────────────────
 
+def _list_inbox_sync(max_results: int = 100) -> list[dict]:
+    """Devuelve hasta max_results mensajes actuales del INBOX (sin filtro historyId)."""
+    svc = _build_service()
+    res = svc.users().messages().list(
+        userId="me",
+        labelIds=["INBOX"],
+        maxResults=max_results,
+    ).execute()
+    return res.get("messages", [])
+
+
+async def list_inbox(max_results: int = 100) -> list[dict]:
+    return await asyncio.to_thread(_list_inbox_sync, max_results)
+
+
 async def list_new_emails() -> list[dict]:
     return await asyncio.to_thread(_list_new_emails_sync)
 
