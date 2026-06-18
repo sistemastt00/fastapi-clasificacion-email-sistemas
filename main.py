@@ -229,7 +229,8 @@ async def pubsub_push(request: Request):
 @app.post("/reprocess")
 async def reprocess(request: Request, session: Optional[str] = Cookie(default=None)):
     """Reprocesa todos los emails actuales del INBOX (recupera los no clasificados)."""
-    if not _auth_ok(session):
+    token = request.query_params.get("token", "")
+    if not _auth_ok(session) and not (config.DEPLOY_TOKEN and token == config.DEPLOY_TOKEN):
         raise HTTPException(status_code=403, detail="No autorizado")
     messages = await gmail_svc.list_inbox(max_results=100)
     logger.info(f"[reprocess] {len(messages)} email(s) en INBOX encontrados")
