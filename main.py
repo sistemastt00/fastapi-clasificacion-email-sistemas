@@ -449,11 +449,13 @@ def _render_monitor():
     .sm-mail{{color:var(--t3);font-size:.75em}}
     .sm-subj-h{{padding:5px 10px;max-width:280px;word-break:break-word}}
   </style>
+<script>(function(){{var t=localStorage.getItem('monTheme')||'light';document.documentElement.setAttribute('data-theme',t);}})();</script>
 </head>
 <body>
 <div class="nav">
   <span class="nav-title">📧 Email Sistemas Bot <span class="live">live</span></span>
   <div class="nav-actions">
+    <button class="nb" id="btn-theme" onclick="toggleTheme()" title="Cambiar tema">☀️</button>
     <button class="nb" onclick="collapseAll()">⊟ Summary</button>
     <button class="nb nb-danger" id="btn-pausar" onclick="pauseRefresh()">⏸ Pausar</button>
     <button class="nb" id="btn-retomar" onclick="resumeRefresh()" disabled>▶ Retomar</button>
@@ -512,10 +514,14 @@ def _render_monitor():
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const newBodyHTML = Array.from(doc.body.children).filter(function(el) {{ return el.tagName !== 'SCRIPT'; }}).map(function(el) {{ return el.outerHTML; }}).join('');
         document.body.innerHTML = newBodyHTML;
+        setTheme(localStorage.getItem('monTheme')||'light');
         Object.keys(openIds).forEach(function(id) {{ var el = document.getElementById(id); if (el) el.style.display = openIds[id]; }});
       }} catch(e) {{ console.error('Soft reload error:', e); }}
     }}
     startTimers();
+    function setTheme(val){{localStorage.setItem('monTheme',val);document.documentElement.setAttribute('data-theme',val);var b=document.getElementById('btn-theme');if(b)b.textContent=val==='dark'?'🌙':'☀️';}}
+    function toggleTheme(){{var t=document.documentElement.getAttribute('data-theme')||'light';setTheme(t==='dark'?'light':'dark');}}
+    (function(){{var t=localStorage.getItem('monTheme')||'light';var b=document.getElementById('btn-theme');if(b)b.textContent=t==='dark'?'🌙':'☀️';}})();
   </script>
 </body>
 </html>"""
