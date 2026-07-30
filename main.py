@@ -64,19 +64,21 @@ def _auth_page(err: str = "") -> str:
 <title>{_AUTH_MONITOR_NAME} — Acceso</title>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:monospace;background:#0f0f1a;color:#e0e0e0;display:flex;align-items:center;justify-content:center;min-height:100vh}}
-.box{{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:12px;padding:44px 40px;width:380px}}
-.logo-area{{text-align:center;margin-bottom:28px}}
-.logo-area img{{height:42px;max-width:100%;object-fit:contain;margin-bottom:14px;display:block;margin-left:auto;margin-right:auto}}
-h2{{color:#e94560;font-size:1.1em;text-align:center;letter-spacing:2px;text-transform:uppercase}}
-.sub{{color:#888;font-size:.75em;text-align:center;margin-top:4px;letter-spacing:1px}}
-.error{{background:#2a0c0c;border:1px solid #e74c3c;color:#e74c3c;padding:9px 14px;border-radius:6px;font-size:.82em;margin:18px 0 0;text-align:center}}
-.field{{margin-top:20px}}
-label{{display:block;color:#888;font-size:.75em;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}}
-input{{width:100%;background:#0f0f1a;border:1px solid #2a2a4a;color:#e0e0e0;padding:10px 14px;border-radius:6px;font-family:monospace;font-size:.95em;outline:none;transition:border-color .15s}}
-input:focus{{border-color:#e94560}}
-.btn{{width:100%;background:#e94560;border:none;color:#fff;padding:13px;border-radius:6px;font-family:monospace;font-size:.95em;font-weight:bold;cursor:pointer;letter-spacing:1px;margin-top:28px;transition:opacity .15s}}
-.btn:hover{{opacity:.88}}
+:root{{--bg:#F1F5F9;--su:#fff;--t1:#0F172A;--t2:#475569;--t3:#64748B;--bo:#E2E8F0;--grn:#059669;--rs:8px}}
+@media(prefers-color-scheme:dark){{:root{{--bg:#0F172A;--su:#1E293B;--t1:#F1F5F9;--t2:#94A3B8;--t3:#64748B;--bo:#334155}}}}
+body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh}}
+.box{{background:var(--su);border-radius:12px;padding:44px 40px;width:380px;box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 20px rgba(0,0,0,.06);border:1px solid var(--bo)}}
+.logo-area{{text-align:center;margin-bottom:32px}}
+.logo-area img{{height:42px;max-width:100%;object-fit:contain;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto}}
+h2{{color:var(--t1);font-size:.95em;text-align:center;letter-spacing:1px;text-transform:uppercase;font-weight:700}}
+.sub{{color:var(--t3);font-size:.75em;text-align:center;margin-top:4px}}
+.error{{background:#FEF2F2;border:1px solid rgba(220,38,38,.25);color:#DC2626;padding:9px 14px;border-radius:var(--rs);font-size:.82em;margin:18px 0 0;text-align:center}}
+.field{{margin-top:18px}}
+label{{display:block;color:var(--t2);font-size:.75em;letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px;font-weight:600}}
+input{{width:100%;background:var(--su);border:1px solid var(--bo);color:var(--t1);padding:10px 14px;border-radius:var(--rs);font-family:inherit;font-size:.95em;outline:none;transition:border-color .15s,box-shadow .15s}}
+input:focus{{border-color:var(--grn);box-shadow:0 0 0 3px rgba(5,150,105,.12)}}
+.btn{{width:100%;background:var(--t1);border:none;color:#fff;padding:12px;border-radius:var(--rs);font-family:inherit;font-size:.9em;font-weight:600;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;margin-top:24px;transition:opacity .15s}}
+.btn:hover{{opacity:.85}}
 </style>
 </head>
 <body>
