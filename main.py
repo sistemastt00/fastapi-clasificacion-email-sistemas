@@ -468,14 +468,17 @@ def _render_monitor():
     }}
     async function softReload() {{
       try {{
+        const openIds = {{}};
+        document.querySelectorAll('[id]').forEach(function(el) {{
+          if (el.style.display && el.style.display !== 'none') openIds[el.id] = el.style.display;
+        }});
         const res = await fetch(window.location.href, {{cache:'no-store'}});
         if (!res.ok) return;
         const html = await res.text();
         const doc = new DOMParser().parseFromString(html, 'text/html');
-        const newBodyHTML = Array.from(doc.body.children).filter(el => el.tagName !== 'SCRIPT').map(el => el.outerHTML).join('');
-        document.body.style.transition = 'opacity 0.2s ease';
-        document.body.style.opacity = '0.4';
-        setTimeout(function() {{ document.body.innerHTML = newBodyHTML; document.body.style.opacity = '1'; }}, 180);
+        const newBodyHTML = Array.from(doc.body.children).filter(function(el) {{ return el.tagName !== 'SCRIPT'; }}).map(function(el) {{ return el.outerHTML; }}).join('');
+        document.body.innerHTML = newBodyHTML;
+        Object.keys(openIds).forEach(function(id) {{ var el = document.getElementById(id); if (el) el.style.display = openIds[id]; }});
       }} catch(e) {{ console.error('Soft reload error:', e); }}
     }}
     startTimers();
