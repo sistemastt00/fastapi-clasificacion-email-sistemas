@@ -45,6 +45,7 @@ LABEL_MAKE               = os.getenv("LABEL_MAKE", "")
 LABEL_BOT_MOROSOS        = os.getenv("LABEL_BOT_MOROSOS", "")
 LABEL_CONTRATACION       = os.getenv("LABEL_CONTRATACION", "")
 LABEL_SISTEMAS_PROCESADO = os.getenv("LABEL_SISTEMAS_PROCESADO", "")
+LABEL_YOUSIGN            = os.getenv("LABEL_YOUSIGN", "")
 
 # ─── Deploy webhook ───────────────────────────────────────────────────────────
 DEPLOY_TOKEN = os.getenv("DEPLOY_TOKEN", "")

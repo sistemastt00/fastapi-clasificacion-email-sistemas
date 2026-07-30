@@ -29,6 +29,7 @@ Rutas del BasicRouter principal (módulo 2) — no exclusivas:
   10. lower(subject) contains "nuevo prospecto sin gestionar"        → Bitrix24
   11. lower(fromEmail) contains "make"                              → Make
   12. fromEmail == "contabilidad@tutrastero.com" OR subject contains "Cobro de Moroso" OR "Oportunidad Única -" → Bot Llamada Morosos
+  13. fromEmail == "firmas.online@tutrastero.com"                    → YouSign
 """
 import asyncio
 import collections
@@ -305,6 +306,12 @@ async def _route_email(email: dict) -> tuple[list[str], str]:
         labels.append(config.LABEL_BOT_MOROSOS); _hit("Bot-Llamada-Morosos")
     else:
         _miss("Bot-Llamada-Morosos")
+
+    # Ruta 13 — YouSign
+    if from_email == "firmas.online@tutrastero.com":
+        labels.append(config.LABEL_YOUSIGN); _hit("YouSign")
+    else:
+        _miss("YouSign")
 
     descripcion = ", ".join(results) if results else "Sin etiqueta"
     return list(dict.fromkeys(labels)), descripcion
