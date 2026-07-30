@@ -382,43 +382,82 @@ def _render_monitor():
 <head>
 <meta charset="UTF-8">
 <title>Monitor — Email Sistemas</title>
-<style>
-  * {{ box-sizing:border-box; margin:0; padding:0; }}
-  body {{ font-family:monospace; background:#0f0f1a; padding:24px; color:#eee; }}
-  .topbar {{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:10px; }}
-  h1 {{ color:#e94560; font-size:1.3em; }}
-  .badge {{ background:#2ecc71; color:#fff; padding:2px 10px; border-radius:10px; font-size:.72em; margin-left:8px; vertical-align:middle; }}
-  .toolbar {{ display:flex; gap:8px; align-items:center; }}
-  .btn {{ background:#16213e; border:1px solid #2a2a4a; color:#ccc; padding:5px 14px; border-radius:6px; cursor:pointer; font-family:monospace; font-size:12px; transition:background .15s; text-decoration:none; display:inline-block; }}
-  .btn:hover {{ background:#1f2f50; color:#fff; }}
-  .btn-pause  {{ border-color:#e74c3c; color:#e74c3c; }}
-  .btn-resume {{ border-color:#2ecc71; color:#2ecc71; }}
-  #ticker {{ color:#555; font-size:12px; min-width:50px; text-align:right; }}
-  .sub {{ color:#555; font-size:12px; margin:0 0 16px; }}
-  table {{ width:100%; border-collapse:collapse; background:#1a1a2e; border:1px solid #2a2a4a; border-radius:8px; overflow:hidden; }}
-  th {{ background:#16213e; color:#aaa; padding:8px 12px; text-align:left; font-size:.8em; letter-spacing:.5px; }}
-  .ts {{ white-space:nowrap; width:115px; padding:5px 10px; color:#bbb; font-size:.78em; }}
-  .lv {{ width:70px; padding:5px 8px; font-size:.78em; font-weight:600; }}
-  .ms {{ padding:5px 10px; font-size:.82em; word-break:break-word; color:#ddd; }}
-  td {{ padding:5px 10px; font-size:.82em; vertical-align:top; }}
-  .sm-head {{ cursor:pointer; transition:background .1s; }}
-  .sm-head:hover td {{ background:#1f2540; }}
-  .sm-arrow {{ width:20px; padding:5px 4px; color:#555; font-size:.7em; }}
-  .sm-from-h {{ padding:5px 10px; font-size:.82em; min-width:140px; }}
-  .sm-mail {{ color:#555; font-size:.75em; }}
-  .sm-subj-h {{ padding:5px 10px; font-size:.82em; color:#ddd; max-width:280px; word-break:break-word; }}
-</style>
+  <style>
+    *{{box-sizing:border-box;margin:0;padding:0}}
+    :root{{
+      --bg:#F1F5F9;--su:#fff;--bo:#E2E8F0;--boh:#CBD5E1;
+      --t1:#0F172A;--t2:#475569;--t3:#94A3B8;
+      --grn:#059669;--grn-bg:#ECFDF5;--grn-brd:rgba(5,150,105,.18);
+      --red:#DC2626;--red-bg:#FEF2F2;--red-brd:rgba(220,38,38,.18);
+      --amb:#D97706;--amb-bg:#FFFBEB;--amb-brd:rgba(217,119,6,.18);
+      --rs:6px;
+    }}
+    @media(prefers-color-scheme:dark){{:root{{
+      --bg:#0F172A;--su:#1E293B;--bo:#334155;--boh:#475569;
+      --t1:#F1F5F9;--t2:#94A3B8;--t3:#475569;
+      --grn-bg:#022c22;--red-bg:#1e0606;--amb-bg:#1c1107;
+      --grn-brd:rgba(5,150,105,.3);--red-brd:rgba(220,38,38,.3);--amb-brd:rgba(217,119,6,.3);
+    }}}}
+    :root[data-theme=dark]{{--bg:#0F172A;--su:#1E293B;--bo:#334155;--boh:#475569;--t1:#F1F5F9;--t2:#94A3B8;--t3:#475569;--grn-bg:#022c22;--red-bg:#1e0606;--amb-bg:#1c1107;--grn-brd:rgba(5,150,105,.3);--red-brd:rgba(220,38,38,.3);--amb-brd:rgba(217,119,6,.3)}}
+    :root[data-theme=light]{{--bg:#F1F5F9;--su:#fff;--bo:#E2E8F0;--boh:#CBD5E1;--t1:#0F172A;--t2:#475569;--t3:#94A3B8;--grn-bg:#ECFDF5;--red-bg:#FEF2F2;--amb-bg:#FFFBEB;--grn-brd:rgba(5,150,105,.18);--red-brd:rgba(220,38,38,.18);--amb-brd:rgba(217,119,6,.18)}}
+    body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5;color:var(--t1);background:var(--bg);font-variant-numeric:tabular-nums}}
+    /* Nav */
+    .nav{{position:sticky;top:0;z-index:50;background:var(--su);border-bottom:1px solid var(--bo);display:flex;align-items:center;gap:10px;padding:0 18px;height:48px}}
+    .nav-title{{font-size:14px;font-weight:700;color:var(--t1);display:flex;align-items:center;gap:8px;white-space:nowrap}}
+    .live{{display:inline-flex;align-items:center;gap:4px;background:var(--grn-bg);color:var(--grn);border:1px solid var(--grn-brd);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;letter-spacing:.04em}}
+    .live::before{{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}}
+    .nav-actions{{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}}
+    .nb{{padding:5px 11px;border-radius:var(--rs);font-size:12px;font-weight:500;color:var(--t2);border:1px solid var(--bo);background:var(--su);cursor:pointer;font-family:inherit;transition:background .15s}}
+    .nb:hover{{background:var(--bg)}}
+    .nb:disabled{{opacity:.35;cursor:default}}
+    .nb-danger{{color:var(--red);border-color:var(--red-brd)}}
+    .nb-danger:hover{{background:var(--red-bg)}}
+    /* Content */
+    .content{{padding:16px 18px}}
+    .sub{{font-size:12px;color:var(--t3);margin:0 0 12px}}
+    /* Table */
+    table{{width:100%;border-collapse:collapse;background:var(--su);border:1px solid var(--bo);border-radius:8px;overflow:hidden}}
+    th{{background:var(--bg);color:var(--t2);padding:8px 12px;text-align:left;font-size:.78em;letter-spacing:.5px;font-weight:600;text-transform:uppercase}}
+    td{{padding:6px 12px;font-size:.88em;border-top:1px solid var(--bo);color:var(--t2);vertical-align:top}}
+    /* Expandable rows - level 1 (calls/emails) */
+    .sm-head{{cursor:pointer;transition:background .1s}}
+    .sm-head:hover td{{background:var(--bg)}}
+    .sm-arrow,.fn-arrow{{width:20px;padding:6px 4px;color:var(--t3);font-size:.85em}}
+    .sm-detail{{background:var(--su)}}
+    .sm-tel{{padding:6px 12px;color:var(--t1);min-width:140px}}
+    .sm-label{{color:var(--t3);font-size:.85em;white-space:nowrap}}
+    .sm-val{{font-size:.88em;color:var(--t2)}}
+    .ts{{white-space:nowrap;width:130px;padding:6px 12px;color:var(--t1);font-weight:600}}
+    /* Expandable rows - level 2 (functions) */
+    .fn-head{{cursor:pointer;background:var(--bg);transition:background .1s;border-top:1px solid var(--bo)}}
+    .fn-head:hover td{{background:var(--boh)}}
+    .fn-ts{{white-space:nowrap;width:115px;padding:5px 12px;color:var(--t3);font-size:.85em}}
+    .fn-detail td{{background:var(--bg);font-size:.85em}}
+    .wh-cell{{padding:5px 10px}}
+    /* Badges / chips */
+    .badge{{background:var(--grn-bg);color:var(--grn);border:1px solid var(--grn-brd);padding:1px 8px;border-radius:10px;font-size:.72em;font-weight:700}}
+    /* Scrollbar */
+    ::-webkit-scrollbar{{width:6px;height:6px}}
+    ::-webkit-scrollbar-track{{background:var(--bg)}}
+    ::-webkit-scrollbar-thumb{{background:var(--bo);border-radius:3px}}
+    /* Email Sistemas specific */
+    .lv{{width:70px;padding:5px 8px;font-size:.78em;font-weight:600}}
+    .ms{{padding:5px 10px;font-size:.82em;word-break:break-word}}
+    .sm-from-h{{padding:5px 10px;min-width:140px}}
+    .sm-mail{{color:var(--t3);font-size:.75em}}
+    .sm-subj-h{{padding:5px 10px;max-width:280px;word-break:break-word}}
+  </style>
 </head>
 <body>
-  <div class="topbar">
-    <h1>📧 Email Sistemas Bot <span class="badge">live</span></h1>
-    <div class="toolbar">
-      <button class="btn" onclick="collapseAll()">⊟ Summary</button>
-      <button class="btn btn-pause"  id="btn-pausar"  onclick="pauseRefresh()">⏸ Pausar</button>
-      <button class="btn btn-resume" id="btn-retomar" onclick="resumeRefresh()" disabled>▶ Retomar</button>
-      <span id="ticker">5 s</span>
-    </div>
+<div class="nav">
+  <span class="nav-title">📧 Email Sistemas Bot <span class="live">live</span></span>
+  <div class="nav-actions">
+    <button class="nb" onclick="collapseAll()">⊟ Summary</button>
+    <button class="nb nb-danger" id="btn-pausar" onclick="pauseRefresh()">⏸ Pausar</button>
+    <button class="nb" id="btn-retomar" onclick="resumeRefresh()" disabled>▶ Retomar</button>
   </div>
+</div>
+<div class="content">
   <p class="sub">Cuenta: <code>sistemas@tutrastero.com</code> &nbsp;·&nbsp; refresco 5 s</p>
 
   <div id="summary-view">
@@ -427,7 +466,7 @@ def _render_monitor():
       <tbody>{bloques}</tbody>
     </table>
   </div>
-
+</div>
   <script>
     function collapseAll() {{
       document.querySelectorAll('.sm-detail').forEach(d => d.style.display = 'none');
@@ -445,19 +484,12 @@ def _render_monitor():
       }}
     }}
     const INTERVAL = 5;
-    let remaining = INTERVAL, countdown, reloader;
+    let reloader;
     function startTimers() {{
-      remaining = INTERVAL;
-      countdown = setInterval(() => {{
-        remaining--;
-        document.getElementById('ticker').textContent = remaining + ' s';
-        if (remaining <= 0) remaining = INTERVAL;
-      }}, 1000);
       reloader = setInterval(softReload, INTERVAL * 1000);
     }}
     function pauseRefresh() {{
-      clearInterval(countdown); clearInterval(reloader);
-      document.getElementById('ticker').textContent = '—';
+      clearInterval(reloader);
       document.getElementById('btn-pausar').disabled = true;
       document.getElementById('btn-retomar').disabled = false;
     }}
