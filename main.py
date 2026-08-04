@@ -450,6 +450,8 @@ def _render_monitor():
     .sm-subj-h{{padding:5px 10px;max-width:280px;word-break:break-word}}
   </style>
 <script>(function(){{var t=localStorage.getItem('monTheme')||'light';document.documentElement.setAttribute('data-theme',t);}})();</script>
+<style>.in-iframe .nav{{display:none!important}}</style>
+<script>if(window.self!==window.top)document.documentElement.classList.add('in-iframe');</script>
 </head>
 <body>
 <div class="nav">
