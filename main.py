@@ -313,6 +313,59 @@ def _logout(session: Optional[str] = Cookie(default=None)):
     return resp
 
 
+import hmac as _hmac_sso, hashlib as _hashlib_sso, json as _json_sso
+_BOT_SSO_SECRET: str = ""
+_bot_sso_nonces: dict = {}
+try:
+    import os as _os_sso
+    _sso_env = "/opt/fastapi-monitor-global/.env"
+    if _os_sso.path.exists(_sso_env):
+        with open(_sso_env, encoding="utf-8") as _f:
+            for _l in _f:
+                if _l.startswith("SSO_SHARED_SECRET="):
+                    _BOT_SSO_SECRET = _l.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+except Exception:
+    pass
+
+
+@app.get("/sso")
+def _bot_sso(request: Request):
+    token = request.query_params.get("token", "")
+    next_url = request.query_params.get("next", "/monitor?iframe=1")
+    if not _BOT_SSO_SECRET or not token:
+        return RedirectResponse("/login", status_code=302)
+    try:
+        parts = token.split(".")
+        if len(parts) != 2:
+            raise ValueError
+        b64p, b64s = parts
+        sig = _base64.urlsafe_b64decode(b64s + "==")
+        expected = _hmac_sso.digest(_BOT_SSO_SECRET.encode(), b64p.encode(), _hashlib_sso.sha256)
+        if not _hmac_sso.compare_digest(sig, expected):
+            raise ValueError
+        payload = _json_sso.loads(_base64.urlsafe_b64decode(b64p + "==").decode())
+        if _time.time() > payload.get("exp", 0):
+            raise ValueError
+        nonce = payload.get("nonce", "")
+        now = _time.time()
+        for k in list(_bot_sso_nonces):
+            if now - _bot_sso_nonces[k] > 300:
+                del _bot_sso_nonces[k]
+        if nonce in _bot_sso_nonces:
+            raise ValueError
+        _bot_sso_nonces[nonce] = now
+    except Exception:
+        return RedirectResponse("/login?error=1", status_code=302)
+    sub = payload.get("sub", "user")
+    sess = _secrets.token_hex(32)
+    _AUTH_SESSIONS[sess] = sub
+    safe_next = next_url if next_url.startswith("/") else "/monitor?iframe=1"
+    resp = RedirectResponse(safe_next, status_code=302)
+    resp.set_cookie("session", sess, httponly=True, samesite="none", secure=True, max_age=86400)
+    return resp
+
+
 @app.get("/monitor", response_class=HTMLResponse)
 async def monitor(session: Optional[str] = Cookie(default=None)):
     if not _auth_ok(session):
