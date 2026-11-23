@@ -46,6 +46,9 @@ LABEL_BOT_MOROSOS        = os.getenv("LABEL_BOT_MOROSOS", "")
 LABEL_CONTRATACION       = os.getenv("LABEL_CONTRATACION", "")
 LABEL_SISTEMAS_PROCESADO = os.getenv("LABEL_SISTEMAS_PROCESADO", "")
 LABEL_YOUSIGN            = os.getenv("LABEL_YOUSIGN", "")
+LABEL_ACCESSONE          = os.getenv("LABEL_ACCESSONE", "")
+LABEL_AETYM              = os.getenv("LABEL_AETYM", "")
+LABEL_A3                 = os.getenv("LABEL_A3", "")   # etiqueta "A3 Contabilidad"
 
 # ─── Deploy webhook ───────────────────────────────────────────────────────────
 DEPLOY_TOKEN = os.getenv("DEPLOY_TOKEN", "")

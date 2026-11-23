@@ -30,10 +30,19 @@ Rutas del BasicRouter principal (módulo 2) — no exclusivas:
   11. lower(fromEmail) contains "make"                              → Make
   12. fromEmail == "contabilidad@tutrastero.com" OR subject contains "Cobro de Moroso" OR "Oportunidad Única -" → Bot Llamada Morosos
   13. fromEmail == "firmas.online@tutrastero.com"                    → YouSign
+
+Rutas añadidas fuera del blueprint (reglas propias, ver _classify_aetym / _classify_accessone):
+  14. AETYM     (prioridad sobre AccessOne)  → etiqueta + automático: leído y archivado /
+                                                requiere atención: se deja en Recibidos sin leer
+  15. AccessOne (sólo si no es AETYM)        → etiqueta + leído y archivado,
+                                                salvo que el cuerpo mencione error/alerta/acceso fallido
+  16. A3 · Contabilidad (notificacion@tutrastero.com)  → etiqueta "A3 Contabilidad"; ver _classify_a3
+Regla general de acciones: ante la duda, el correo se queda en Recibidos sin leer.
 """
 import asyncio
 import collections
 import datetime
+import html
 import logging
 import re
 
@@ -202,12 +211,194 @@ async def _handle_from_cgi(subject: str, body: str) -> tuple[list[str], str]:
     return list(dict.fromkeys(labels)), ", ".join(results)
 
 
+# ─── Reglas AETYM / AccessOne (fuera del blueprint) ───────────────────────────
+
+def _hdr(email: dict, name: str) -> str:
+    """Cabecera sin distinguir mayúsculas."""
+    name = name.lower()
+    for k, v in (email.get("headers") or {}).items():
+        if k.lower() == name:
+            return v or ""
+    return ""
+
+
+def _html_to_text(html_src: str) -> str:
+    """HTML → texto plano en minúsculas (quita script/style/etiquetas y colapsa espacios)."""
+    s = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", html_src)
+    s = re.sub(r"(?s)<[^>]+>", " ", s)
+    return re.sub(r"\s+", " ", html.unescape(s)).strip().lower()
+
+
+def _text_body(email: dict) -> str:
+    plain = email.get("fullTextBody")
+    if plain:
+        return plain.lower()
+    if email.get("htmlBody"):
+        return _html_to_text(email["htmlBody"])
+    return (email.get("snippet") or "").lower()
+
+
+def _is_aetym(email: dict) -> bool:
+    """Remitente/destinatario @aetym.com, o 'aetym' en asunto/cuerpo (incluye rebotes con la dirección)."""
+    addrs = " ".join(_hdr(email, h) for h in ("From", "To", "Cc", "Reply-To", "Delivered-To")).lower()
+    if "@aetym.com" in addrs:
+        return True
+    return "aetym" in email.get("subject", "").lower() or "aetym" in _text_body(email)
+
+
+_AUTOREPLY_SUBJECTS = (
+    "respuesta automática", "respuesta automatica", "automatic reply", "autoreply",
+    "auto-reply", "out of office", "fuera de la oficina", "fuera de oficina",
+    "delivery status notification", "undeliverable", "no se puede entregar",
+    "mail delivery",
+)
+_TOOL_SENDERS = ("github.com", "google.com", "googlemail.com", "drive-shares")
+
+
+def _classify_aetym(email: dict) -> str:
+    """
+    Devuelve 'auto' (leído + archivar) o 'atencion' (Recibidos, sin leer).
+    Orden: prueba → solicitud real → automáticos → resto (duda ⇒ atención).
+    """
+    subject   = email.get("subject", "")
+    su_lo     = subject.lower()
+    fe_lo     = email.get("fromEmail", "").lower()
+    fn_lo     = email.get("fromName", "").lower()
+    from_hdr  = _hdr(email, "From").lower()
+
+    # a) Correos de prueba
+    if "[prueba]" in su_lo or "aetym - pruebas" in fn_lo:
+        return "auto"
+
+    # b) Solicitudes reales del formulario (sin [Prueba])
+    if "[solicitud]" in su_lo or "nueva solicitud desde aetym.com" in su_lo:
+        return "atencion"
+
+    # Reenvíos: requieren atención aunque vengan de una persona o herramienta
+    if re.match(r"^\s*(fw|fwd|rv)\s*:", su_lo):
+        return "atencion"
+
+    # a) Rebotes
+    if "mailer-daemon" in fe_lo or "mailer-daemon" in from_hdr or "mail delivery subsystem" in from_hdr \
+            or "postmaster@" in fe_lo:
+        return "auto"
+
+    # a) Respuestas automáticas (cabeceras estándar o asunto típico)
+    auto_sub = _hdr(email, "Auto-Submitted").lower()
+    if (auto_sub and auto_sub != "no") \
+            or _hdr(email, "X-Autoreply") or _hdr(email, "X-Autorespond") \
+            or _hdr(email, "Precedence").lower() in ("auto_reply", "bulk", "junk") \
+            or any(s in su_lo for s in _AUTOREPLY_SUBJECTS):
+        return "auto"
+
+    # a) Confirmación al remitente del formulario
+    if "hemos recibido tu solicitud" in su_lo:
+        return "auto"
+
+    # a) Avisos de herramientas (GitHub, Google Drive...)
+    if any(fe_lo.endswith(d) or f"@{d}" in fe_lo or f".{d}" in fe_lo for d in _TOOL_SENDERS):
+        return "auto"
+
+    # b) Persona que escribe / duda → Recibidos sin leer
+    return "atencion"
+
+
+_ACCESSONE_ALERT_WORDS = (
+    "error", "alerta", "fallido", "fallida", "fallo", "denegado", "denegada",
+    "failed", "denied", "alert",
+)
+
+
+def _is_accessone(email: dict) -> bool:
+    su = email.get("subject", "")
+    return su.startswith("Primer acceso a Tu Trastero") or "accessone" in su.lower()
+
+
+def _accessone_has_alert(email: dict) -> bool:
+    body = _text_body(email)
+    return any(w in body for w in _ACCESSONE_ALERT_WORDS)
+
+
+# ─── Regla A3 · Contabilidad ──────────────────────────────────────────────────
+
+_A3_TAG       = "[a3 · contabilidad]"
+_REPLY_PREFIX = re.compile(r"^\s*((re|fw|fwd|rv)\s*:\s*)+", re.I)
+_A3_NUEVAS    = re.compile(r"\((\d+)\s+nuevas?\)", re.I)
+
+
+def _classify_a3(email: dict) -> str | None:
+    """
+    None → no es A3. Si lo es: 'auto' (leído + archivar) o 'atencion' (Recibidos sin leer).
+    """
+    subject  = email.get("subject", "")
+    stripped = _REPLY_PREFIX.sub("", subject).strip().lower()
+    if not stripped.startswith(_A3_TAG):
+        return None
+
+    # Reenvío / respuesta de un aviso: siempre a Recibidos
+    if _REPLY_PREFIX.match(subject):
+        return "atencion"
+
+    # Aviso original: sólo si lo envía App Spaceman
+    if email.get("fromEmail", "").lower() != "notificacion@tutrastero.com":
+        return None
+
+    body = _text_body(email)
+    if "sin incidencias" in stripped or "a3 erp: test" in body:
+        return "auto"
+    m = _A3_NUEVAS.search(subject)
+    if "a3 erp: prod" in body and m and int(m.group(1)) > 0:
+        return "atencion"
+    return "auto"   # PROD con incidencias pero ninguna nueva
+
+
+_A3_FECHA = re.compile(r"(\d{2})/(\d{2})/(\d{4})\s+(\d{2}):(\d{2})\s*$")
+
+
+def _a3_subject_dt(subject: str) -> datetime.datetime | None:
+    """Fecha/hora del aviso, tomada del final del asunto ('... · 23/11/2026 02:04')."""
+    m = _A3_FECHA.search(subject.strip())
+    if not m:
+        return None
+    d, mo, y, h, mi = map(int, m.groups())
+    try:
+        return datetime.datetime(y, mo, d, h, mi)
+    except ValueError:
+        return None
+
+
+async def _archive_previous_a3(current_id: str, subject: str):
+    """
+    Sólo el último aviso A3 del día se queda en Recibidos: archiva (y marca leídos)
+    los avisos A3 anteriores del mismo día que sigan en INBOX.
+    """
+    cur = _a3_subject_dt(subject)
+    if cur is None:
+        return
+    candidates = await gmail.search_inbox_subjects(
+        'from:notificacion@tutrastero.com subject:A3 subject:Contabilidad newer_than:3d'
+    )
+    for c in candidates:
+        if c["id"] == current_id:
+            continue
+        subj = c["subject"]
+        if _REPLY_PREFIX.match(subj) or not subj.strip().lower().startswith(_A3_TAG):
+            continue
+        dt = _a3_subject_dt(subj)
+        if dt and dt.date() == cur.date() and dt < cur:
+            await gmail.apply_labels(c["id"], add_labels=[], remove_labels=["INBOX", "UNREAD"])
+            logger.info(f"[0] A3: aviso anterior del día archivado → {subj[:70]!r}")
+
+
 # ─── Router principal — BasicRouter módulo 2 ──────────────────────────────────
 
-async def _route_email(email: dict) -> tuple[list[str], str]:
+async def _route_email(email: dict) -> tuple[list[str], str, dict]:
     """
     Evalúa TODAS las rutas del blueprint de forma independiente (no exclusivas).
+    Devuelve (labels, descripcion, acciones). acciones = {"mark_read": bool, "keep_inbox": bool}.
+    keep_inbox=True anula el archivado (y el marcado como leído) de cualquier ruta.
     """
+    actions = {"mark_read": False, "keep_inbox": False}
     from_email = email.get("fromEmail", "")
     from_name  = email.get("fromName", "")
     subject    = email.get("subject", "")
@@ -313,8 +504,57 @@ async def _route_email(email: dict) -> tuple[list[str], str]:
     else:
         _miss("YouSign")
 
+    # Ruta 14 — AETYM (prioridad sobre AccessOne)
+    aetym = _is_aetym(email)
+    if aetym:
+        tipo = _classify_aetym(email)
+        if config.LABEL_AETYM:
+            labels.append(config.LABEL_AETYM)
+        else:
+            logger.warning("  ⚠ LABEL_AETYM no configurado — no se aplica etiqueta")
+        if tipo == "auto":
+            actions["mark_read"] = True
+        else:
+            actions["keep_inbox"] = True
+        _hit(f"AETYM({tipo})")
+    else:
+        _miss("AETYM")
+
+    # Ruta 15 — AccessOne (sólo si no es AETYM)
+    if not aetym and _is_accessone(email):
+        if config.LABEL_ACCESSONE:
+            labels.append(config.LABEL_ACCESSONE)
+        else:
+            logger.warning("  ⚠ LABEL_ACCESSONE no configurado — no se aplica etiqueta")
+        if _accessone_has_alert(email):
+            actions["keep_inbox"] = True
+            _hit("AccessOne(alerta→Recibidos)")
+        else:
+            actions["mark_read"] = True
+            _hit("AccessOne")
+    else:
+        _miss("AccessOne")
+
+    # Ruta 16 — A3 · Contabilidad
+    a3 = _classify_a3(email)
+    if a3:
+        if config.LABEL_A3:
+            labels.append(config.LABEL_A3)
+        else:
+            logger.warning("  ⚠ LABEL_A3 no configurado — no se aplica etiqueta")
+        if a3 == "auto":
+            actions["mark_read"] = True
+        else:
+            actions["keep_inbox"] = True
+            if not _REPLY_PREFIX.match(email.get("subject", "")):
+                actions["a3_supersede"] = True   # aviso original: archiva los anteriores del día
+        _hit(f"A3-Contabilidad({a3})")
+    else:
+        _miss("A3-Contabilidad")
+
+    labels = [l for l in labels if l]
     descripcion = ", ".join(results) if results else "Sin etiqueta"
-    return list(dict.fromkeys(labels)), descripcion
+    return list(dict.fromkeys(labels)), descripcion, actions
 
 
 # ─── Procesamiento individual ─────────────────────────────────────────────────
@@ -340,11 +580,23 @@ async def _process_email_inner(msg_stub: dict):
     # Módulo 10 — sleep 3 segundos
     await asyncio.sleep(3)
 
-    labels, descripcion = await _route_email(email)
+    labels, descripcion, actions = await _route_email(email)
 
     if labels:
-        await gmail.apply_labels(message_id, add_labels=labels, remove_labels=["INBOX"])
+        remove = []
+        if actions["keep_inbox"]:
+            logger.info("[0] Se mantiene en Recibidos sin leer (requiere atención / duda)")
+        else:
+            remove.append("INBOX")
+            if actions["mark_read"]:
+                remove.append("UNREAD")
+        await gmail.apply_labels(message_id, add_labels=labels, remove_labels=remove)
         logger.info(f"[0] Etiquetas: {descripcion}")
+        if actions.get("a3_supersede"):
+            try:
+                await _archive_previous_a3(message_id, subject)
+            except Exception as exc:
+                logger.error(f"[0] A3: error archivando avisos anteriores: {exc}")
     else:
         await gmail.apply_labels(message_id, add_labels=[config.LABEL_SISTEMAS_PROCESADO], remove_labels=[])
         logger.info("[0] Sin ruta — etiquetado Sistemas-Procesado (en INBOX)")

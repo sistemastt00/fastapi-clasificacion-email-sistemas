@@ -203,6 +203,26 @@ def _list_inbox_sync(max_results: int = 100) -> list[dict]:
     return res.get("messages", [])
 
 
+def _search_inbox_subjects_sync(query: str, max_results: int = 50) -> list[dict]:
+    """Mensajes de INBOX que cumplen la query Gmail → [{'id', 'subject'}]."""
+    svc = _build_service()
+    res = svc.users().messages().list(
+        userId="me", labelIds=["INBOX"], q=query, maxResults=max_results,
+    ).execute()
+    out = []
+    for m in res.get("messages", []):
+        full = svc.users().messages().get(
+            userId="me", id=m["id"], format="metadata", metadataHeaders=["Subject"],
+        ).execute()
+        hdrs = {h["name"]: h["value"] for h in full.get("payload", {}).get("headers", [])}
+        out.append({"id": m["id"], "subject": hdrs.get("Subject", "")})
+    return out
+
+
+async def search_inbox_subjects(query: str, max_results: int = 50) -> list[dict]:
+    return await asyncio.to_thread(_search_inbox_subjects_sync, query, max_results)
+
+
 async def list_inbox(max_results: int = 100) -> list[dict]:
     return await asyncio.to_thread(_list_inbox_sync, max_results)
 
