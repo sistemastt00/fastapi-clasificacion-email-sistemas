@@ -22,26 +22,24 @@ independiente (no exclusivas) y devuelve `(labels, descripcion, acciones)`.
 
 ### Acciones (leído / archivado)
 
-- Con etiqueta: se quita de INBOX. Si la ruta marca `mark_read`, se quita también UNREAD.
-- `keep_inbox=True` **anula** el archivado y el leído de cualquier ruta
-  ("ante la duda, en Recibidos sin leer").
-- Sin ninguna ruta: se etiqueta `Sistemas-Procesado` y se queda en INBOX.
+- **Todo correo etiquetado sale de Recibidos** (queda sólo en su etiqueta), sin excepciones.
+- Si la ruta marca `mark_read` (automáticos), se quita también UNREAD. Los que requieren
+  atención quedan **archivados pero sin leer** en su etiqueta.
+- `keep_unread=True` **anula** el leído de cualquier ruta ("ante la duda, sin leer").
+- Sin ninguna ruta: se etiqueta `Sistemas-Procesado` y también se archiva.
 - Nunca se modifican las etiquetas CGI-Clasificación ni `Sistemas-Procesado` desde las reglas 14-16.
 
 ### Reglas 14-16 (resumen)
 
-- **AETYM** — a Recibidos sin leer: `[Solicitud]` / "Nueva solicitud desde aetym.com" sin `[Prueba]`,
+- **AETYM** — sin leer: `[Solicitud]` / "Nueva solicitud desde aetym.com" sin `[Prueba]`,
   reenvíos (`Fw/Fwd/RV`) y correos de personas. Leído y archivado: `[Prueba]`, rebotes
   (mailer-daemon), respuestas automáticas, "Hemos recibido tu solicitud", avisos de GitHub/Google.
-- **AccessOne** — leído y archivado, salvo que el cuerpo mencione error/alerta/fallo/denegado.
+- **AccessOne** — leído, salvo que el cuerpo mencione error/alerta/fallo/denegado (queda sin leer).
 - **A3** — remitente `notificacion@tutrastero.com`:
-  - "sin incidencias" o `A3 ERP: TEST` → leído y archivado.
-  - `A3 ERP: PROD` con "(N nueva/s)", N>0 → Recibidos sin leer.
-  - PROD con incidencias pero ninguna nueva → leído y archivado.
-  - `Re/Fw/Fwd/RV` de un aviso → etiqueta y siempre Recibidos sin leer.
-  - **Sólo el último aviso A3 del día queda en Recibidos**: al llegar uno que debe
-    quedarse, se archivan (y marcan leídos) los anteriores del mismo día (fecha/hora tomadas
-    del final del asunto) que sigan en INBOX.
+  - "sin incidencias" o `A3 ERP: TEST` → leído.
+  - `A3 ERP: PROD` con "(N nueva/s)", N>0 → sin leer.
+  - PROD con incidencias pero ninguna nueva → leído.
+  - `Re/Fw/Fwd/RV` de un aviso → etiqueta y siempre sin leer.
 - Los avisos A3 llegan **sólo en HTML**: `_text_body` convierte HTML a texto antes de buscar marcas.
 
 ### Variables de entorno de etiquetas
@@ -54,7 +52,7 @@ y no aplica esa etiqueta (las acciones sí se aplican).
 
 ```
 handlers/clasificacion.py   # Router principal (rutas 1-16) + sub-flujos + reglas AETYM/AccessOne/A3
-services/gmail.py           # Gmail API (History API, búsqueda en INBOX, sin marcar como leído)
+services/gmail.py           # Gmail API (History API, sin marcar como leído)
 services/airtable.py        # Airtable REST (search, list, update)
 services/openai_svc.py      # OpenAI gpt-4.1 (clasificación CGI)
 config.py                   # Label IDs, tabla IDs, credenciales

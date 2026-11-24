@@ -32,12 +32,14 @@ Rutas del BasicRouter principal (módulo 2) — no exclusivas:
   13. fromEmail == "firmas.online@tutrastero.com"                    → YouSign
 
 Rutas añadidas fuera del blueprint (reglas propias, ver _classify_aetym / _classify_accessone):
-  14. AETYM     (prioridad sobre AccessOne)  → etiqueta + automático: leído y archivado /
-                                                requiere atención: se deja en Recibidos sin leer
-  15. AccessOne (sólo si no es AETYM)        → etiqueta + leído y archivado,
-                                                salvo que el cuerpo mencione error/alerta/acceso fallido
+  14. AETYM     (prioridad sobre AccessOne)  → etiqueta + automático: leído /
+                                                requiere atención: se deja sin leer
+  15. AccessOne (sólo si no es AETYM)        → etiqueta + leído,
+                                                salvo que el cuerpo mencione error/alerta/acceso fallido (sin leer)
   16. A3 · Contabilidad (notificacion@tutrastero.com)  → etiqueta "A3 Contabilidad"; ver _classify_a3
-Regla general de acciones: ante la duda, el correo se queda en Recibidos sin leer.
+Regla general de acciones: todo correo etiquetado sale de Recibidos (queda sólo en su etiqueta).
+Los automáticos además se marcan leídos; los que requieren atención quedan SIN LEER; ante la duda, sin leer.
+Sin ninguna ruta: etiqueta Sistemas-Procesado y también sale de Recibidos.
 """
 import asyncio
 import collections
@@ -257,7 +259,7 @@ _TOOL_SENDERS = ("github.com", "google.com", "googlemail.com", "drive-shares")
 
 def _classify_aetym(email: dict) -> str:
     """
-    Devuelve 'auto' (leído + archivar) o 'atencion' (Recibidos, sin leer).
+    Devuelve 'auto' (leído) o 'atencion' (sin leer). Siempre se archiva.
     Orden: prueba → solicitud real → automáticos → resto (duda ⇒ atención).
     """
     subject   = email.get("subject", "")
@@ -299,7 +301,7 @@ def _classify_aetym(email: dict) -> str:
     if any(fe_lo.endswith(d) or f"@{d}" in fe_lo or f".{d}" in fe_lo for d in _TOOL_SENDERS):
         return "auto"
 
-    # b) Persona que escribe / duda → Recibidos sin leer
+    # b) Persona que escribe / duda → sin leer
     return "atencion"
 
 
@@ -328,14 +330,14 @@ _A3_NUEVAS    = re.compile(r"\((\d+)\s+nuevas?\)", re.I)
 
 def _classify_a3(email: dict) -> str | None:
     """
-    None → no es A3. Si lo es: 'auto' (leído + archivar) o 'atencion' (Recibidos sin leer).
+    None → no es A3. Si lo es: 'auto' (leído) o 'atencion' (sin leer). Siempre se archiva.
     """
     subject  = email.get("subject", "")
     stripped = _REPLY_PREFIX.sub("", subject).strip().lower()
     if not stripped.startswith(_A3_TAG):
         return None
 
-    # Reenvío / respuesta de un aviso: siempre a Recibidos
+    # Reenvío / respuesta de un aviso: siempre sin leer
     if _REPLY_PREFIX.match(subject):
         return "atencion"
 
@@ -352,53 +354,15 @@ def _classify_a3(email: dict) -> str | None:
     return "auto"   # PROD con incidencias pero ninguna nueva
 
 
-_A3_FECHA = re.compile(r"(\d{2})/(\d{2})/(\d{4})\s+(\d{2}):(\d{2})\s*$")
-
-
-def _a3_subject_dt(subject: str) -> datetime.datetime | None:
-    """Fecha/hora del aviso, tomada del final del asunto ('... · 23/11/2026 02:04')."""
-    m = _A3_FECHA.search(subject.strip())
-    if not m:
-        return None
-    d, mo, y, h, mi = map(int, m.groups())
-    try:
-        return datetime.datetime(y, mo, d, h, mi)
-    except ValueError:
-        return None
-
-
-async def _archive_previous_a3(current_id: str, subject: str):
-    """
-    Sólo el último aviso A3 del día se queda en Recibidos: archiva (y marca leídos)
-    los avisos A3 anteriores del mismo día que sigan en INBOX.
-    """
-    cur = _a3_subject_dt(subject)
-    if cur is None:
-        return
-    candidates = await gmail.search_inbox_subjects(
-        'from:notificacion@tutrastero.com subject:A3 subject:Contabilidad newer_than:3d'
-    )
-    for c in candidates:
-        if c["id"] == current_id:
-            continue
-        subj = c["subject"]
-        if _REPLY_PREFIX.match(subj) or not subj.strip().lower().startswith(_A3_TAG):
-            continue
-        dt = _a3_subject_dt(subj)
-        if dt and dt.date() == cur.date() and dt < cur:
-            await gmail.apply_labels(c["id"], add_labels=[], remove_labels=["INBOX", "UNREAD"])
-            logger.info(f"[0] A3: aviso anterior del día archivado → {subj[:70]!r}")
-
-
 # ─── Router principal — BasicRouter módulo 2 ──────────────────────────────────
 
 async def _route_email(email: dict) -> tuple[list[str], str, dict]:
     """
     Evalúa TODAS las rutas del blueprint de forma independiente (no exclusivas).
-    Devuelve (labels, descripcion, acciones). acciones = {"mark_read": bool, "keep_inbox": bool}.
-    keep_inbox=True anula el archivado (y el marcado como leído) de cualquier ruta.
+    Devuelve (labels, descripcion, acciones). acciones = {"mark_read": bool, "keep_unread": bool}.
+    Todo correo se archiva; keep_unread=True anula el marcado como leído de cualquier ruta.
     """
-    actions = {"mark_read": False, "keep_inbox": False}
+    actions = {"mark_read": False, "keep_unread": False}
     from_email = email.get("fromEmail", "")
     from_name  = email.get("fromName", "")
     subject    = email.get("subject", "")
@@ -515,7 +479,7 @@ async def _route_email(email: dict) -> tuple[list[str], str, dict]:
         if tipo == "auto":
             actions["mark_read"] = True
         else:
-            actions["keep_inbox"] = True
+            actions["keep_unread"] = True
         _hit(f"AETYM({tipo})")
     else:
         _miss("AETYM")
@@ -527,8 +491,8 @@ async def _route_email(email: dict) -> tuple[list[str], str, dict]:
         else:
             logger.warning("  ⚠ LABEL_ACCESSONE no configurado — no se aplica etiqueta")
         if _accessone_has_alert(email):
-            actions["keep_inbox"] = True
-            _hit("AccessOne(alerta→Recibidos)")
+            actions["keep_unread"] = True
+            _hit("AccessOne(alerta→sin leer)")
         else:
             actions["mark_read"] = True
             _hit("AccessOne")
@@ -545,9 +509,7 @@ async def _route_email(email: dict) -> tuple[list[str], str, dict]:
         if a3 == "auto":
             actions["mark_read"] = True
         else:
-            actions["keep_inbox"] = True
-            if not _REPLY_PREFIX.match(email.get("subject", "")):
-                actions["a3_supersede"] = True   # aviso original: archiva los anteriores del día
+            actions["keep_unread"] = True
         _hit(f"A3-Contabilidad({a3})")
     else:
         _miss("A3-Contabilidad")
@@ -582,24 +544,19 @@ async def _process_email_inner(msg_stub: dict):
 
     labels, descripcion, actions = await _route_email(email)
 
+    # Todo correo etiquetado sale de Recibidos (queda sólo en su etiqueta).
+    # Los automáticos se marcan leídos; los que requieren atención quedan sin leer.
+    remove = ["INBOX"]
+    if actions["mark_read"] and not actions["keep_unread"]:
+        remove.append("UNREAD")
+
     if labels:
-        remove = []
-        if actions["keep_inbox"]:
-            logger.info("[0] Se mantiene en Recibidos sin leer (requiere atención / duda)")
-        else:
-            remove.append("INBOX")
-            if actions["mark_read"]:
-                remove.append("UNREAD")
         await gmail.apply_labels(message_id, add_labels=labels, remove_labels=remove)
-        logger.info(f"[0] Etiquetas: {descripcion}")
-        if actions.get("a3_supersede"):
-            try:
-                await _archive_previous_a3(message_id, subject)
-            except Exception as exc:
-                logger.error(f"[0] A3: error archivando avisos anteriores: {exc}")
+        logger.info(f"[0] Etiquetas: {descripcion} | archivado"
+                    f"{' y leído' if 'UNREAD' in remove else ' (sin leer)'}")
     else:
-        await gmail.apply_labels(message_id, add_labels=[config.LABEL_SISTEMAS_PROCESADO], remove_labels=[])
-        logger.info("[0] Sin ruta — etiquetado Sistemas-Procesado (en INBOX)")
+        await gmail.apply_labels(message_id, add_labels=[config.LABEL_SISTEMAS_PROCESADO], remove_labels=remove)
+        logger.info("[0] Sin ruta — etiquetado Sistemas-Procesado y archivado")
 
     summaries.appendleft({
         "time":       datetime.datetime.now().strftime("%d/%m %H:%M:%S"),
